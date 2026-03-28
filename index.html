@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>Gestión Corporativa de Revisiones</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1>Gestión Corporativa de Revisiones</h1>
+    </div>
+
+    <div class="user-panel">
+        <div class="user-status">
+            <span id="userStatusText">No autenticado</span>
+        </div>
+        <div class="user-controls">
+            <button id="logoutBtn" style="display: none;">Cerrar sesión</button>
+        </div>
+    </div>
+
+    <div class="card" id="userManagementCard" style="display: none;">
+        <h2>Gestión de usuarios</h2>
+        <div class="user-management-grid">
+            <input type="text" id="newUserFullName" placeholder="Nombre completo">
+            <input type="text" id="newUserName" placeholder="Nuevo usuario">
+            <input type="password" id="newUserPassword" placeholder="Clave inicial (mínimo 4)">
+            <select id="newUserRole">
+                <option value="EMPRESA">EMPRESA</option>
+                <option value="COORDINADOR">COORDINADOR</option>
+                <option value="ADMIN">ADMIN</option>
+            </select>
+            <select id="newUserCompany"></select>
+            <button id="createUserBtn">Crear usuario</button>
+        </div>
+        <div class="table-wrapper" style="margin-top: 16px;">
+            <table id="usersTable">
+                <thead>
+                    <tr>
+                        <th>Nombre</th>
+                        <th>Usuario</th>
+                        <th>Rol</th>
+                        <th>Empresa asignada</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody id="usersTbody">
+                    <tr><td colspan="5">Cargando usuarios...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>Agenda Semanal</h2>
+        <div class="week-nav">
+            <button id="prevWeekBtn">&lt; Semana anterior</button>
+            <span id="weekRangeLabel"></span>
+            <button id="nextWeekBtn">Semana siguiente &gt;</button>
+        </div>
+        <div class="calendar-container" id="calendarContainer">
+            <div class="calendar-grid" id="calendarGrid"></div>
+        </div>
+        <div id="calendarMessage" class="msg" style="margin-top: 16px; display: none;"></div>
+    </div>
+
+    <div class="card card-consolidated">
+        <h2>Consolidado de revisiones</h2>
+        <div class="table-wrapper">
+            <table id="appointmentsTable">
+                <thead>
+                    <tr><th>Tipo</th><th>Empresa</th><th>Vehículo</th><th>Coordinador</th><th>Fecha</th><th>Hora</th><th>Informe PDF</th><th>Resultado</th><th id="adminActionsHeader" style="display: none;">Acciones</th>
+                </thead>
+                                <tbody id="appointmentsTbody"><tr><td colspan="9">Cargando citas...</td></tr></tbody>
+              </table>
+        </div>
+    </div>
+    <footer>Sistema de control de revisiones bimestrales – Datos guardados localmente</footer>
+</div>
+
+<div id="appointmentModal" class="modal">
+    <div class="modal-content">
+        <h3 id="modalTitle">Nueva revisión</h3>
+        <label>Tipo *</label>
+        <select id="modalType"><option>REVISION</option><option>REINSPECCION</option></select>
+        <label>Empresa *</label>
+        <select id="modalCompany"><option>RAPIDO OCHOA</option><option>ESPECIALES</option><option>TRANSEGOVIA</option><option>ARAUCA</option><option>COLGAS</option><option>TVS</option><option>TRANSORIENTE</option></select>
+        <label>Vehículo *</label>
+        <input type="text" id="modalVehicle" placeholder="Ej: ABC123 - 001">
+        <input type="text" id="modalVehicleTransegovia" list="modalVehicleTransegoviaList" placeholder="Buscar por número interno o placa" style="display: none;">
+        <datalist id="modalVehicleTransegoviaList"></datalist>
+        <div id="coordinatorRow">
+        <label>Coordinador</label>
+        <input type="text" id="modalCoordinator" placeholder="Nombre del coordinador">
+        </div>
+        <label>Fecha *</label>
+        <input type="text" id="modalDate" readonly>
+        <label>Hora *</label>
+        <input type="text" id="modalTime" readonly>
+        <div id="reviewOutcomeSection" style="display: none;">
+            <label>Resultado</label>
+            <select id="modalStatus">
+                <option>Pendiente</option>
+                <option>No se presenta</option>
+                <option>habilitado</option>
+                <option>inhabilitado</option>
+                <option>condicionado</option>
+            </select>
+            <label>Informe PDF (opcional)</label>
+            <input type="file" id="modalPdfFile" accept="application/pdf">
+            <div id="modalPdfCurrent" style="font-size:0.75rem; color:#415d76;"></div>
+        </div>
+        <div id="modalPdfDownload" style="font-size:0.78rem; margin-top:10px;"></div>
+        <div class="modal-buttons">
+            <button id="modalCancelBtn">Cancelar</button>
+            <button id="modalConfirmBtn">Guardar</button>
+        </div>
+    </div>
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>

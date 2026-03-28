@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inicio de sesión - Gestión de Revisiones</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="auth-page">
+    <main class="auth-main">
+        <section class="auth-card">
+            <div class="auth-hero">
+                <img src="assets/A8A.webp" alt="Imagen corporativa" class="auth-hero-image">
+            </div>
+
+            <div class="auth-form-content">
+            <div class="auth-brand-chip">
+                <h2 class="auth-corporate-title">Gestión Corporativa de Revisiones</h2>
+            </div>
+            <h1>Inicio de sesión</h1>
+            <p>Ingrese su usuario y clave para acceder al sistema de revisiones.</p>
+
+            <label for="authUsername">Usuario</label>
+            <input type="text" id="authUsername" placeholder="Usuario" autocomplete="username">
+
+            <label for="authPassword">Clave</label>
+            <input type="password" id="authPassword" placeholder="Clave" autocomplete="current-password">
+
+            <button id="authLoginBtn">Entrar</button>
+            <div id="authMessage" class="msg" style="display:none; margin-top: 12px;"></div>
+
+            <div class="auth-help">
+                <strong>Accesos iniciales:</strong>
+                <div>admin / 1234</div>
+                <div>coordinador / 1234</div>
+            </div>
+            </div>
+        </section>
+    </main>
+    <script src="login.js"></script>
+</body>
+</html>
