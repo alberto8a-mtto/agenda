@@ -1,41 +1,22 @@
-const AUTH_STORAGE_KEY = "revisiones_auth_config_v1";
 const SESSION_STORAGE_KEY = "revisiones_active_session_v1";
-const DEFAULT_AUTH_CONFIG = {
-    users: [
-        { id: "u_admin", fullName: "Administrador", username: "admin", password: "1234", role: "ADMIN", company: "TODAS", blocked: false },
-        { id: "u_coord", fullName: "Coordinador", username: "coordinador", password: "1234", role: "COORDINADOR", company: "TODAS", blocked: false }
-    ]
-};
 
-let authConfig = { users: [] };
+async function apiRequest(path, options = {}) {
+    const response = await fetch(path, {
+        method: options.method || "GET",
+        headers: {
+            "Content-Type": "application/json",
+            ...(options.headers || {})
+        },
+        body: options.body ? JSON.stringify(options.body) : undefined
+    });
 
-function persistAuthConfig() {
-    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(authConfig));
-}
-
-function loadAuthConfig() {
-    const stored = localStorage.getItem(AUTH_STORAGE_KEY);
-    if (!stored) {
-        authConfig = { users: DEFAULT_AUTH_CONFIG.users.map(u => ({ ...u })) };
-        persistAuthConfig();
-        return;
+    const isJson = (response.headers.get("content-type") || "").includes("application/json");
+    const payload = isJson ? await response.json() : null;
+    if (!response.ok) {
+        const message = payload && payload.error ? payload.error : "Error de red";
+        throw new Error(message);
     }
-    try {
-        const parsed = JSON.parse(stored);
-        if (parsed && Array.isArray(parsed.users) && parsed.users.length) {
-            authConfig = {
-                users: parsed.users
-                    .filter(u => u && typeof u.username === "string" && typeof u.password === "string")
-                    .map(u => ({ ...u, fullName: (typeof u.fullName === "string" && u.fullName.trim()) ? u.fullName.trim() : u.username, blocked: u.blocked === true }))
-            };
-            return;
-        }
-        authConfig = { users: DEFAULT_AUTH_CONFIG.users.map(u => ({ ...u })) };
-        persistAuthConfig();
-    } catch (e) {
-        authConfig = { users: DEFAULT_AUTH_CONFIG.users.map(u => ({ ...u })) };
-        persistAuthConfig();
-    }
+    return payload;
 }
 
 function showAuthMessage(message, type) {
@@ -46,8 +27,13 @@ function showAuthMessage(message, type) {
     messageBox.style.display = "block";
 }
 
-function setSession(userId) {
-    sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify({ userId }));
+function setSession(user) {
+    sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify({
+        userId: user.userId,
+        username: user.username,
+        role: user.role,
+        company: user.company
+    }));
 }
 
 function hasActiveSession() {
@@ -55,19 +41,13 @@ function hasActiveSession() {
     if (!raw) return false;
     try {
         const parsed = JSON.parse(raw);
-        if (!parsed || !parsed.userId) return false;
-        return authConfig.users.some(u => u.id === parsed.userId);
+        return !!(parsed && parsed.userId);
     } catch (e) {
         return false;
     }
 }
 
-function findUser(username, password) {
-    const normalized = username.trim().toLowerCase();
-    return authConfig.users.find(u => u.username.toLowerCase() === normalized && u.password === password.trim()) || null;
-}
-
-function login() {
+async function login() {
     const usernameInput = document.getElementById("authUsername");
     const passwordInput = document.getElementById("authPassword");
     const username = usernameInput ? usernameInput.value : "";
@@ -78,23 +58,24 @@ function login() {
         return;
     }
 
-    const user = findUser(username, password);
-    if (!user) {
-        showAuthMessage("Usuario o clave incorrectos.", "error");
-        return;
-    }
-    if (user.blocked === true) {
-        showAuthMessage("Usuario bloqueado. Solicite restablecimiento a ADMIN o COORDINADOR.", "error");
-        return;
-    }
+    try {
+        const user = await apiRequest("/api/auth/login", {
+            method: "POST",
+            body: {
+                username: username.trim(),
+                password: password.trim()
+            }
+        });
 
-    setSession(user.id);
-    showAuthMessage("Acceso exitoso. Redirigiendo...", "success");
-    window.location.href = "index.html";
+        setSession(user);
+        showAuthMessage("Acceso exitoso. Redirigiendo...", "success");
+        window.location.href = "index.html";
+    } catch (error) {
+        showAuthMessage(error.message || "Usuario o clave incorrectos.", "error");
+    }
 }
 
 function initLoginPage() {
-    loadAuthConfig();
     if (hasActiveSession()) {
         window.location.href = "index.html";
         return;

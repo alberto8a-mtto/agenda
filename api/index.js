@@ -128,6 +128,29 @@ app.delete('/api/users/:id', async (req, res) => {
   }
 });
 
+app.patch('/api/users/:id', async (req, res) => {
+  try {
+    const allowedFields = ['fullName', 'username', 'role', 'company', 'blocked'];
+    const payload = {};
+
+    for (const field of allowedFields) {
+      if (Object.prototype.hasOwnProperty.call(req.body, field)) {
+        payload[field] = req.body[field];
+      }
+    }
+
+    if (!Object.keys(payload).length) {
+      return res.status(400).json({ error: 'No hay campos válidos para actualizar' });
+    }
+
+    await db.collection('users').doc(req.params.id).update(payload);
+    res.json({ message: 'Usuario actualizado' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error al actualizar usuario' });
+  }
+});
+
 app.patch('/api/users/:id/block', async (req, res) => {
   try {
     const { blocked } = req.body;

@@ -1,12 +1,5 @@
-// ---------- CONFIGURACIÓN DE ACCESO LOCAL ----------
-const AUTH_STORAGE_KEY = "revisiones_auth_config_v1";
+// ---------- CONFIGURACIÓN DE ACCESO ----------
 const SESSION_STORAGE_KEY = "revisiones_active_session_v1";
-const DEFAULT_AUTH_CONFIG = {
-    users: [
-        { id: "u_admin", fullName: "Administrador", username: "admin", password: "1234", role: "ADMIN", company: "TODAS", blocked: false },
-        { id: "u_coord", fullName: "Coordinador", username: "coordinador", password: "1234", role: "COORDINADOR", company: "TODAS", blocked: false }
-    ]
-};
 const USER_ROLES = ["EMPRESA", "COORDINADOR", "ADMIN"];
 const COMPANY_OPTIONS = ["RAPIDO OCHOA", "ESPECIALES", "TRANSEGOVIA", "ARAUCA", "COLGAS", "TVS", "TRANSORIENTE"];
 
@@ -17,7 +10,6 @@ let authConfig = { users: [] };
 
 // ---------- DATOS DE CITAS ----------
 let appointments = [];
-const STORAGE_KEY = "revisiones_transporte_app_v2";
 const STATUS_OPTIONS = ["Pendiente", "No se presenta", "habilitado", "inhabilitado", "condicionado"];
 const TIME_SLOTS = ["07:00", "08:00", "09:00", "10:00", "11:00", "13:00", "14:00", "15:00"];
 const DAYS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
@@ -66,9 +58,26 @@ const TRANSEGOVIA_VEHICLES = [
 let currentWeekStart = null;
 let editingAppId = null;
 
-// Persistencia
-function persistAppointments() { localStorage.setItem(STORAGE_KEY, JSON.stringify(appointments)); }
-function persistAuthConfig() { localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(authConfig)); }
+async function apiRequest(path, options = {}) {
+    const response = await fetch(path, {
+        method: options.method || "GET",
+        headers: {
+            "Content-Type": "application/json",
+            ...(options.headers || {})
+        },
+        body: options.body ? JSON.stringify(options.body) : undefined
+    });
+
+    const isJson = (response.headers.get("content-type") || "").includes("application/json");
+    const payload = isJson ? await response.json() : null;
+
+    if (!response.ok) {
+        const message = payload && payload.error ? payload.error : "Error de conexión con el servidor.";
+        throw new Error(message);
+    }
+
+    return payload;
+}
 
 function generateUserId() {
     return `u_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
@@ -127,103 +136,47 @@ function normalizeLoadedUsers(users) {
         if (!rawUser || typeof rawUser !== "object") continue;
         const fullName = typeof rawUser.fullName === "string" && rawUser.fullName.trim() ? rawUser.fullName.trim() : (typeof rawUser.username === "string" ? rawUser.username.trim() : "");
         const username = typeof rawUser.username === "string" ? rawUser.username.trim() : "";
-        const password = typeof rawUser.password === "string" ? rawUser.password.trim() : "";
         const role = USER_ROLES.includes(rawUser.role) ? rawUser.role : "EMPRESA";
         const company = typeof rawUser.company === "string" && rawUser.company.trim() ? rawUser.company.trim() : (role === "EMPRESA" ? COMPANY_OPTIONS[0] : "TODAS");
         const blocked = rawUser.blocked === true;
-        if (!fullName || !username || !password) continue;
+        const password = typeof rawUser.password === "string" ? rawUser.password.trim() : "";
+        if (!fullName || !username) continue;
         if (normalized.some(u => u.username.toLowerCase() === username.toLowerCase())) continue;
         normalized.push({ id: rawUser.id || generateUserId(), fullName, username, password, role, company, blocked });
     }
     return normalized;
 }
 
-function ensureSystemUsers(users) {
-    const result = [...users];
-    for (const required of DEFAULT_AUTH_CONFIG.users) {
-        const exists = result.some(u => u.username.toLowerCase() === required.username.toLowerCase());
-        if (!exists) result.push({ ...required });
-    }
-    return result;
+async function loadAuthConfig() {
+    const users = await apiRequest("/api/users");
+    authConfig = { users: normalizeLoadedUsers(users) };
 }
 
-function loadAuthConfig() {
-    const stored = localStorage.getItem(AUTH_STORAGE_KEY);
-    if (!stored) {
-        authConfig = { users: DEFAULT_AUTH_CONFIG.users.map(u => ({ ...u })) };
-        persistAuthConfig();
-        return;
-    }
-    try {
-        const parsed = JSON.parse(stored);
-        if (parsed && Array.isArray(parsed.users)) {
-            const normalized = ensureSystemUsers(normalizeLoadedUsers(parsed.users));
-            if (!normalized.length) {
-                authConfig = { users: DEFAULT_AUTH_CONFIG.users.map(u => ({ ...u })) };
-                persistAuthConfig();
-                return;
-            }
-            authConfig = { users: normalized };
-        } else if (parsed && typeof parsed.username === "string" && typeof parsed.password === "string") {
-            // Migración automática desde formato anterior de un solo usuario.
-            const migratedUser = {
-                id: generateUserId(),
-                fullName: parsed.username.trim(),
-                username: parsed.username.trim(),
-                password: parsed.password.trim(),
-                role: "EMPRESA",
-                company: COMPANY_OPTIONS[0],
-                blocked: false
-            };
-            const baseUsers = migratedUser.username && migratedUser.password ? [migratedUser] : [];
-            authConfig = { users: ensureSystemUsers(baseUsers) };
-        } else {
-            authConfig = { users: DEFAULT_AUTH_CONFIG.users.map(u => ({ ...u })) };
-        }
-        persistAuthConfig();
-    } catch (e) {
-        authConfig = { users: DEFAULT_AUTH_CONFIG.users.map(u => ({ ...u })) };
-        persistAuthConfig();
-    }
+function normalizeAppointments(items) {
+    if (!Array.isArray(items)) return [];
+    return items.map((app) => ({
+        ...app,
+        revisionType: app.revisionType || "REVISION",
+        company: app.company || "RAPIDO OCHOA",
+        vehicle: app.vehicle || "SIN DATOS",
+        coordinator: app.coordinator || "",
+        status: app.status || "Pendiente",
+        email: app.email || "",
+        pdfBase64: app.pdfBase64 || null,
+        pdfName: app.pdfName || null
+    }));
 }
 
-function loadAppointmentsFromStorage() {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-        appointments = JSON.parse(stored);
-        let changed = false;
-        for (let app of appointments) {
-            if (!app.revisionType) { app.revisionType = "REVISION"; changed = true; }
-            if (!app.company) { app.company = "RAPIDO OCHOA"; changed = true; }
-            if (!app.vehicle) { app.vehicle = "SIN DATOS"; changed = true; }
-            if (!app.coordinator) { app.coordinator = ""; changed = true; }
-            if (!app.status) { app.status = "Pendiente"; changed = true; }
-        }
-        if (changed) persistAppointments();
-    } else {
-        const today = new Date();
-        const year = today.getFullYear();
-        const month = String(today.getMonth() + 1).padStart(2, '0');
-        const day = String(today.getDate()).padStart(2, '0');
-        const tomorrow = new Date(today);
-        tomorrow.setDate(today.getDate() + 1);
-        const tYear = tomorrow.getFullYear();
-        const tMonth = String(tomorrow.getMonth() + 1).padStart(2, '0');
-        const tDay = String(tomorrow.getDate()).padStart(2, '0');
-        appointments = [
-            { id: "demo1_" + Date.now(), revisionType: "REVISION", company: "RAPIDO OCHOA", vehicle: "ABC123 - 001", coordinator: "Carlos Pérez", date: `${year}-${month}-${day}`, time: "09:00", email: "cliente1@ejemplo.com", pdfBase64: null, pdfName: null, createdAt: new Date().toISOString(), status: "Pendiente" },
-            { id: "demo2_" + (Date.now()+1), revisionType: "REINSPECCION", company: "TRANSEGOVIA", vehicle: "XYZ789 - 045", coordinator: "María López", date: `${year}-${month}-${day}`, time: "11:00", email: "contacto@transegovia.com", pdfBase64: null, pdfName: null, createdAt: new Date().toISOString(), status: "Pendiente" },
-            { id: "demo3_" + (Date.now()+2), revisionType: "REVISION", company: "ESPECIALES", vehicle: "JKL456 - 022", coordinator: "Juan Rodríguez", date: `${tYear}-${tMonth}-${tDay}`, time: "14:00", email: "logistica@especiales.co", pdfBase64: null, pdfName: null, createdAt: new Date().toISOString(), status: "Pendiente" }
-        ];
-        persistAppointments();
-    }
+async function loadAppointmentsFromApi() {
+    const data = await apiRequest("/api/appointments");
+    appointments = normalizeAppointments(data);
 }
 
 function hasConflict(date, time, excludeId = null) {
     return appointments.some(app => (excludeId !== null && app.id === excludeId) ? false : app.date === date && app.time === time);
 }
 
-function addOrUpdateAppointment(data) {
+async function addOrUpdateAppointment(data) {
     if (!data.vehicle || !data.company || !data.revisionType || !data.date || !data.time || !data.coordinator) {
         return { success: false, message: "Todos los campos obligatorios deben estar completos." };
     }
@@ -233,15 +186,27 @@ function addOrUpdateAppointment(data) {
     if (data.id) {
         const idx = appointments.findIndex(a => a.id === data.id);
         if (idx === -1) return { success: false, message: "Cita no encontrada." };
-        appointments[idx] = { ...appointments[idx], ...data };
-        persistAppointments();
+        const payload = { ...appointments[idx], ...data };
+        await apiRequest(`/api/appointments/${data.id}`, { method: "PATCH", body: payload });
+        appointments[idx] = payload;
         return { success: true, message: `Cita actualizada para ${data.vehicle} - ${data.company}.`, appointmentId: data.id };
     } else {
-        const newId = "app_" + Date.now() + "_" + Math.floor(Math.random() * 10000);
-        const newApp = { id: newId, revisionType: data.revisionType, company: data.company, vehicle: data.vehicle, coordinator: data.coordinator, date: data.date, time: data.time, email: data.email || "", pdfBase64: null, pdfName: null, createdAt: new Date().toISOString(), status: data.status || "Pendiente" };
-        appointments.push(newApp);
-        persistAppointments();
-        return { success: true, message: `Cita reservada para ${data.vehicle} - ${data.company} el ${data.date} a las ${data.time}.`, appointmentId: newId };
+        const newApp = {
+            revisionType: data.revisionType,
+            company: data.company,
+            vehicle: data.vehicle,
+            coordinator: data.coordinator,
+            date: data.date,
+            time: data.time,
+            email: data.email || "",
+            pdfBase64: null,
+            pdfName: null,
+            createdAt: new Date().toISOString(),
+            status: data.status || "Pendiente"
+        };
+        const created = await apiRequest("/api/appointments", { method: "POST", body: newApp });
+        appointments.push(created);
+        return { success: true, message: `Cita reservada para ${data.vehicle} - ${data.company} el ${data.date} a las ${data.time}.`, appointmentId: created.id };
     }
 }
 
@@ -254,27 +219,33 @@ function readPdfAsDataUrl(file) {
     });
 }
 
-function updateAppointmentPdf(appId, base64Data, fileName) {
+async function updateAppointmentPdf(appId, base64Data, fileName) {
     const idx = appointments.findIndex(a => a.id === appId);
     if (idx === -1) return false;
-    appointments[idx].pdfBase64 = base64Data;
-    appointments[idx].pdfName = fileName;
-    persistAppointments();
+    await apiRequest(`/api/appointments/${appId}`, {
+        method: "PATCH",
+        body: { pdfBase64: base64Data, pdfName: fileName }
+    });
+    appointments[idx] = { ...appointments[idx], pdfBase64: base64Data, pdfName: fileName };
     return true;
 }
 
-function updateAppointmentStatus(appId, newStatus) {
+async function updateAppointmentStatus(appId, newStatus) {
     const idx = appointments.findIndex(a => a.id === appId);
     if (idx === -1) return false;
-    appointments[idx].status = newStatus;
-    persistAppointments();
+    await apiRequest(`/api/appointments/${appId}`, {
+        method: "PATCH",
+        body: { status: newStatus }
+    });
+    appointments[idx] = { ...appointments[idx], status: newStatus };
     return true;
 }
 
-function deleteAppointment(appId) {
+async function deleteAppointment(appId) {
     const len = appointments.length;
+    await apiRequest(`/api/appointments/${appId}`, { method: "DELETE" });
     appointments = appointments.filter(a => a.id !== appId);
-    if (appointments.length !== len) { persistAppointments(); return true; }
+    if (appointments.length !== len) { return true; }
     return false;
 }
 
@@ -491,26 +462,34 @@ async function confirmModal() {
         showTemporaryMessage("Solo se permite informe en PDF.", "error");
         return;
     }
-    const result = addOrUpdateAppointment({ id: editingAppId, revisionType: type, company, vehicle, coordinator, date, time, status });
-    if (result.success) {
+    try {
+        const result = await addOrUpdateAppointment({ id: editingAppId, revisionType: type, company, vehicle, coordinator, date, time, status });
+        if (!result.success) {
+            showTemporaryMessage(result.message, "error");
+            return;
+        }
+
         const appId = result.appointmentId;
         if (managerMode && appId) {
-            updateAppointmentStatus(appId, status);
+            await updateAppointmentStatus(appId, status);
             if (pdfFile) {
                 try {
                     const pdfBase64 = await readPdfAsDataUrl(pdfFile);
-                    updateAppointmentPdf(appId, pdfBase64, pdfFile.name);
+                    await updateAppointmentPdf(appId, pdfBase64, pdfFile.name);
                 } catch (e) {
                     showTemporaryMessage("No se pudo cargar el PDF seleccionado.", "error");
                     return;
                 }
             }
         }
+
         showTemporaryMessage(result.message, "success");
         closeModal();
         renderCalendar();
         renderConsolidatedTable();
-    } else { showTemporaryMessage(result.message, "error"); }
+    } catch (error) {
+        showTemporaryMessage(error.message || "No fue posible guardar la cita.", "error");
+    }
 }
 
 function navigateWeek(delta) { const newStart = new Date(currentWeekStart); newStart.setDate(currentWeekStart.getDate() + delta * 7); currentWeekStart = getMonday(newStart); renderCalendar(); }
@@ -549,7 +528,7 @@ function renderConsolidatedTable() {
 
 function getStatusClass(status) { switch(status) { case "No se presenta": return "status-no-show"; case "habilitado": return "status-habilitado"; case "inhabilitado": return "status-inhabilitado"; case "condicionado": return "status-condicionado"; default: return "status-pendiente"; } }
 function handleUploadClick(e) { const btn = e.currentTarget; const appId = btn.getAttribute('data-id'); const row = btn.closest('tr'); const fileInput = row.querySelector('.pdf-upload-input'); if (!fileInput || !fileInput.files[0]) { showTemporaryMessage("Seleccione un PDF.", "error"); return; } const file = fileInput.files[0]; if (file.type !== 'application/pdf') { showTemporaryMessage("Solo PDF.", "error"); return; } const reader = new FileReader(); reader.onload = (ev) => { if (updateAppointmentPdf(appId, ev.target.result, file.name)) { showTemporaryMessage("PDF cargado.", "success"); renderConsolidatedTable(); renderCalendar(); } else showTemporaryMessage("Error.", "error"); }; reader.readAsDataURL(file); }
-function handleDeleteClick(e) { const id = e.currentTarget.getAttribute('data-id'); const app = appointments.find(a => a.id === id); if (!app) return; if (confirm(`Eliminar ${app.vehicle} - ${app.company} el ${app.date} a las ${app.time}?`)) { deleteAppointment(id); renderCalendar(); renderConsolidatedTable(); showTemporaryMessage("Cita eliminada.", "success"); } }
+async function handleDeleteClick(e) { const id = e.currentTarget.getAttribute('data-id'); const app = appointments.find(a => a.id === id); if (!app) return; if (confirm(`Eliminar ${app.vehicle} - ${app.company} el ${app.date} a las ${app.time}?`)) { try { await deleteAppointment(id); renderCalendar(); renderConsolidatedTable(); showTemporaryMessage("Cita eliminada.", "success"); } catch (error) { showTemporaryMessage(error.message || "No fue posible eliminar la cita.", "error"); } } }
 function escapeHtml(str) { if (!str) return ''; return str.replace(/[&<>]/g, m => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;' }[m])); }
 let globalMsgTimeout = null;
 function showTemporaryMessage(msg, type) { const div = document.getElementById("calendarMessage"); if (div) { div.innerHTML = msg; div.className = `msg ${type==="error"?"error-msg":type==="success"?"success-msg":""}`; div.style.display = "block"; if (globalMsgTimeout) clearTimeout(globalMsgTimeout); globalMsgTimeout = setTimeout(() => { div.style.display = "none"; div.innerHTML = ""; }, 4000); } else alert(msg); }
@@ -619,7 +598,7 @@ function renderUserManagementSection() {
     renderUsersTable();
 }
 
-function createUser() {
+async function createUser() {
     if (!canManageUsers()) {
         showTemporaryMessage("No tiene permisos para crear usuarios.", "error");
         return;
@@ -648,16 +627,23 @@ function createUser() {
         return;
     }
 
-    authConfig.users.push({ id: generateUserId(), fullName, username, password, role, company, blocked: false });
-    persistAuthConfig();
-    if (fullNameInput) fullNameInput.value = "";
-    if (usernameInput) usernameInput.value = "";
-    if (passwordInput) passwordInput.value = "";
-    renderUsersTable();
-    showTemporaryMessage("Usuario creado correctamente.", "success");
+    try {
+        const createdUser = await apiRequest("/api/users", {
+            method: "POST",
+            body: { fullName, username, password, role, company }
+        });
+        authConfig.users.push(createdUser);
+        if (fullNameInput) fullNameInput.value = "";
+        if (usernameInput) usernameInput.value = "";
+        if (passwordInput) passwordInput.value = "";
+        renderUsersTable();
+        showTemporaryMessage("Usuario creado correctamente.", "success");
+    } catch (error) {
+        showTemporaryMessage(error.message || "No fue posible crear el usuario.", "error");
+    }
 }
 
-function assignUserCompany(userId) {
+async function assignUserCompany(userId) {
     const user = getUserById(userId);
     if (!user) {
         showTemporaryMessage("Usuario no encontrado.", "error");
@@ -669,15 +655,22 @@ function assignUserCompany(userId) {
     }
     const select = document.querySelector(`.user-company-select[data-user-id="${userId}"]`);
     if (!select) return;
-    user.company = select.value;
-    persistAuthConfig();
-    showTemporaryMessage(`Empresa asignada a ${user.username}.`, "success");
-    if (authenticatedUser && authenticatedUser.id === user.id) {
-        authenticatedUser.company = user.company;
+    try {
+        await apiRequest(`/api/users/${userId}`, {
+            method: "PATCH",
+            body: { company: select.value }
+        });
+        user.company = select.value;
+        showTemporaryMessage(`Empresa asignada a ${user.username}.`, "success");
+        if (authenticatedUser && authenticatedUser.id === user.id) {
+            authenticatedUser.company = user.company;
+        }
+    } catch (error) {
+        showTemporaryMessage(error.message || "No fue posible asignar la empresa.", "error");
     }
 }
 
-function resetUserPassword(userId) {
+async function resetUserPassword(userId) {
     const user = getUserById(userId);
     if (!user) {
         showTemporaryMessage("Usuario no encontrado.", "error");
@@ -690,14 +683,21 @@ function resetUserPassword(userId) {
         showTemporaryMessage("La nueva clave debe tener al menos 4 caracteres.", "error");
         return;
     }
-    user.password = newPassword;
-    user.blocked = false;
-    persistAuthConfig();
-    showTemporaryMessage(`Clave restablecida y usuario desbloqueado para ${user.username}.`, "success");
-    renderUsersTable();
+    try {
+        await apiRequest(`/api/users/${userId}/password`, {
+            method: "PATCH",
+            body: { password: newPassword }
+        });
+        user.password = newPassword;
+        user.blocked = false;
+        showTemporaryMessage(`Clave restablecida y usuario desbloqueado para ${user.username}.`, "success");
+        renderUsersTable();
+    } catch (error) {
+        showTemporaryMessage(error.message || "No fue posible restablecer la clave.", "error");
+    }
 }
 
-function toggleUserBlocked(userId) {
+async function toggleUserBlocked(userId) {
     const user = getUserById(userId);
     if (!user) {
         showTemporaryMessage("Usuario no encontrado.", "error");
@@ -707,13 +707,21 @@ function toggleUserBlocked(userId) {
         showTemporaryMessage("No puede bloquear su propio usuario.", "error");
         return;
     }
-    user.blocked = !user.blocked;
-    persistAuthConfig();
-    renderUsersTable();
-    showTemporaryMessage(user.blocked ? `Usuario ${user.username} bloqueado.` : `Usuario ${user.username} desbloqueado.`, "success");
+    try {
+        const nextBlocked = !user.blocked;
+        await apiRequest(`/api/users/${userId}/block`, {
+            method: "PATCH",
+            body: { blocked: nextBlocked }
+        });
+        user.blocked = nextBlocked;
+        renderUsersTable();
+        showTemporaryMessage(user.blocked ? `Usuario ${user.username} bloqueado.` : `Usuario ${user.username} desbloqueado.`, "success");
+    } catch (error) {
+        showTemporaryMessage(error.message || "No fue posible cambiar el estado del usuario.", "error");
+    }
 }
 
-function deleteUser(userId) {
+async function deleteUser(userId) {
     const user = getUserById(userId);
     if (!user) {
         showTemporaryMessage("Usuario no encontrado.", "error");
@@ -725,10 +733,14 @@ function deleteUser(userId) {
     }
     const confirmed = confirm(`Eliminar el usuario ${user.username}?`);
     if (!confirmed) return;
-    authConfig.users = authConfig.users.filter(existingUser => existingUser.id !== userId);
-    persistAuthConfig();
-    renderUsersTable();
-    showTemporaryMessage(`Usuario ${user.username} eliminado.`, "success");
+    try {
+        await apiRequest(`/api/users/${userId}`, { method: "DELETE" });
+        authConfig.users = authConfig.users.filter(existingUser => existingUser.id !== userId);
+        renderUsersTable();
+        showTemporaryMessage(`Usuario ${user.username} eliminado.`, "success");
+    } catch (error) {
+        showTemporaryMessage(error.message || "No fue posible eliminar el usuario.", "error");
+    }
 }
 
 function handleUsersTableClick(event) {
@@ -778,20 +790,24 @@ function bindGlobalEvents() {
     window.addEventListener("click", (e) => { if (e.target === document.getElementById("appointmentModal")) closeModal(); });
 }
 
-function init() {
-    loadAuthConfig();
-    if (!restoreSessionUser()) {
-        window.location.href = "login.html";
-        return;
+async function init() {
+    try {
+        await loadAuthConfig();
+        if (!restoreSessionUser()) {
+            window.location.href = "login.html";
+            return;
+        }
+        await loadAppointmentsFromApi();
+        currentWeekStart = getMonday(new Date());
+        populateTransegoviaVehicleOptions();
+        populateUserCompanyOptions();
+        bindGlobalEvents();
+        updateVehicleFieldVisibility("");
+        updateUIForAuth(true);
+        renderCalendar();
+        renderConsolidatedTable();
+    } catch (error) {
+        showTemporaryMessage(error.message || "No fue posible conectar con el servidor.", "error");
     }
-    loadAppointmentsFromStorage();
-    currentWeekStart = getMonday(new Date());
-    populateTransegoviaVehicleOptions();
-    populateUserCompanyOptions();
-    bindGlobalEvents();
-    updateVehicleFieldVisibility("");
-    updateUIForAuth(true);
-    renderCalendar();
-    renderConsolidatedTable();
 }
 init();
