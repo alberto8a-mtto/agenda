@@ -547,8 +547,7 @@ function renderConsolidatedTable() {
     let html = "";
     for (const app of sorted) {
         const pdfUrl = getAppointmentPdfUrl(app);
-        const showDownload = (app.company === "TRANSEGOVIA") && pdfUrl;
-        const pdfInfo = showDownload ? `<a class="download-link" href="${pdfUrl}" target="_blank" rel="noopener noreferrer">Descargar PDF</a>` : (pdfUrl ? `<span class="badge">PDF cargado (no disponible)</span>` : `<span class="badge">No cargado</span>`);
+        const pdfInfo = pdfUrl ? `<a class="download-link" href="${pdfUrl}" target="_blank" rel="noopener noreferrer">Descargar PDF</a>` : `<span class="badge">No cargado</span>`;
         let statusCell = `<span class="status-badge ${getStatusClass(app.status)}">${app.status||"Pendiente"}</span>`;
         html += `<tr data-id="${app.id}">
                      <td>${escapeHtml(app.revisionType)}</td>
