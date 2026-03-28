@@ -321,6 +321,16 @@ async function deleteAppointment(appId) {
 function getMonday(date) { const d = new Date(date); const day = d.getDay(); const diff = (day === 0 ? 6 : day - 1); d.setDate(d.getDate() - diff); d.setHours(0,0,0,0); return d; }
 function formatDateYMD(date) { return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`; }
 function formatDateDisplay(date) { return `${String(date.getDate()).padStart(2,'0')}/${String(date.getMonth()+1).padStart(2,'0')}/${date.getFullYear()}`; }
+function parseYmdAsLocalDate(dateString) {
+    if (typeof dateString !== "string") return new Date(dateString);
+    const match = dateString.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!match) return new Date(dateString);
+    const [, year, month, day] = match;
+    return new Date(Number(year), Number(month) - 1, Number(day));
+}
+function getCoordinatorLabel(value) {
+    return typeof value === "string" && value.trim() ? value.trim() : "Por asignar";
+}
 function getWeekDays(startMonday) { const days = []; for (let i = 0; i < 7; i++) { const d = new Date(startMonday); d.setDate(startMonday.getDate() + i); days.push(d); } return days; }
 
 function getCompanyClass(company) {
@@ -408,7 +418,7 @@ function renderCalendar() {
                     default: statusClass = "status-pendiente";
                 }
                 const companyClass = getCompanyClass(app.company);
-                const coordinatorDisplay = app.coordinator && app.coordinator.trim() !== "" ? app.coordinator : "Sin asignar";
+                const coordinatorDisplay = getCoordinatorLabel(app.coordinator);
                 html += `<div class="calendar-cell appointment-block ${companyClass}" style="cursor: pointer;" data-id="${app.id}">
                             <strong>${escapeHtml(app.vehicle)}</strong>
                             <div style="font-size:0.65rem;">${escapeHtml(app.company)}</div>
@@ -450,8 +460,8 @@ function openModal(appId, date, time) {
         document.getElementById("modalCompany").value = app.company;
         document.getElementById("modalVehicle").value = app.vehicle;
         updateVehicleFieldVisibility(app.vehicle);
-        if (coordField) coordField.value = app.coordinator || "Por asignar";
-        document.getElementById("modalDate").value = formatDateDisplay(new Date(app.date));
+        if (coordField) coordField.value = getCoordinatorLabel(app.coordinator);
+        document.getElementById("modalDate").value = formatDateDisplay(parseYmdAsLocalDate(app.date));
         document.getElementById("modalTime").value = app.time;
         if (statusField) statusField.value = app.status || "Pendiente";
         if (pdfInput) pdfInput.value = "";
@@ -484,7 +494,7 @@ function openModal(appId, date, time) {
             if (coordField) coordField.value = "Por asignar";
             if (coordRow) coordRow.style.display = 'none'; // terceros no ven este campo
         }
-        document.getElementById("modalDate").value = formatDateDisplay(new Date(date));
+        document.getElementById("modalDate").value = formatDateDisplay(parseYmdAsLocalDate(date));
         document.getElementById("modalTime").value = time;
         if (statusField) statusField.value = "Pendiente";
         if (pdfInput) pdfInput.value = "";
@@ -588,7 +598,7 @@ function renderConsolidatedTable() {
                      <td>${escapeHtml(app.revisionType)}</td>
                      <td>${escapeHtml(app.company)}</td>
                      <td>${escapeHtml(app.vehicle)}</td>
-                     <td>${escapeHtml(app.coordinator)}</td>
+                     <td>${escapeHtml(getCoordinatorLabel(app.coordinator))}</td>
                      <td>${app.date}</td>
                      <td>${app.time}</td>
                      <td>${pdfInfo}</td>
