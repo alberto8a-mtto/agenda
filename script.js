@@ -11,6 +11,15 @@ let authConfig = { users: [] };
 // ---------- DATOS DE CITAS ----------
 let appointments = [];
 const MAX_PDF_SIZE_BYTES = 600 * 1024;
+const COORDINATOR_OPTIONS = [
+    "Juan Carlos Gallego",
+    "Mateo Garcia",
+    "Jhon Bairon Chavarria",
+    "Yermison Muriel",
+    "Carlos Patiño",
+    "Jorge Acosta",
+    "Alejandro Gomez"
+];
 const STATUS_OPTIONS = ["Pendiente", "No se presenta", "habilitado", "inhabilitado", "condicionado"];
 const TIME_SLOTS = ["07:00", "08:00", "09:00", "10:00", "11:00", "13:00", "14:00", "15:00"];
 const DAYS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
@@ -180,7 +189,7 @@ function hasConflict(date, time, excludeId = null) {
 }
 
 async function addOrUpdateAppointment(data) {
-    if (!data.vehicle || !data.company || !data.revisionType || !data.date || !data.time || !data.coordinator) {
+    if (!data.vehicle || !data.company || !data.revisionType || !data.date || !data.time || !data.coordinator || !data.status) {
         return { success: false, message: "Todos los campos obligatorios deben estar completos." };
     }
     if (hasConflict(data.date, data.time, data.id)) {
@@ -358,6 +367,20 @@ function populateTransegoviaVehicleOptions(selectedValue = "") {
     searchInput.value = selectedValue || "";
 }
 
+function populateCoordinatorOptions(selectedValue = "") {
+    const coordinatorSelect = document.getElementById("modalCoordinator");
+    if (!coordinatorSelect) return;
+    const options = ['<option value="">Seleccione coordinador</option>'];
+    for (const coordinator of COORDINATOR_OPTIONS) {
+        options.push(`<option value="${escapeHtml(coordinator)}">${escapeHtml(coordinator)}</option>`);
+    }
+    if (selectedValue && !COORDINATOR_OPTIONS.includes(selectedValue)) {
+        options.push(`<option value="${escapeHtml(selectedValue)}">${escapeHtml(selectedValue)}</option>`);
+    }
+    coordinatorSelect.innerHTML = options.join("");
+    coordinatorSelect.value = selectedValue || "";
+}
+
 function updateVehicleFieldVisibility(prefillValue = "") {
     const company = document.getElementById("modalCompany")?.value || "";
     const vehicleInput = document.getElementById("modalVehicle");
@@ -461,10 +484,10 @@ function openModal(appId, date, time) {
         document.getElementById("modalCompany").value = app.company;
         document.getElementById("modalVehicle").value = app.vehicle;
         updateVehicleFieldVisibility(app.vehicle);
-        if (coordField) coordField.value = getCoordinatorLabel(app.coordinator);
+        populateCoordinatorOptions(app.coordinator || "");
         document.getElementById("modalDate").value = formatDateDisplay(parseYmdAsLocalDate(app.date));
         document.getElementById("modalTime").value = app.time;
-        if (statusField) statusField.value = app.status || "Pendiente";
+        if (statusField) statusField.value = app.status || "";
         if (pdfInput) pdfInput.value = "";
         if (pdfCurrent) pdfCurrent.innerText = app.pdfName ? `Informe actual: ${app.pdfName}` : "Sin informe cargado.";
         if (pdfDownload) {
@@ -474,8 +497,7 @@ function openModal(appId, date, time) {
                 : '<span class="badge">Sin informe cargado</span>';
             attachPdfDownloadHandlers(pdfDownload);
         }
-        if (outcomeSection) outcomeSection.style.display = managerMode ? '' : 'none';
-        // Coordinador visible; editable solo para coordinador autenticado (aquí se asigna)
+        if (outcomeSection) outcomeSection.style.display = '';
         if (coordRow) coordRow.style.display = '';
         if (coordField) coordField.disabled = !managerMode;
         if (deleteBtn) deleteBtn.style.display = managerMode ? '' : 'none';
@@ -487,22 +509,16 @@ function openModal(appId, date, time) {
         document.getElementById("modalCompany").value = "RAPIDO OCHOA";
         document.getElementById("modalVehicle").value = "";
         updateVehicleFieldVisibility("");
-        // El coordinador lo asigna el módulo Ing/Coord; terceros no lo ven
-        if (managerMode) {
-            if (coordField) coordField.value = authenticatedUser && authenticatedUser.name ? authenticatedUser.name : "";
-            if (coordRow) coordRow.style.display = '';
-            if (coordField) coordField.disabled = true; // auto-asignado al logueado
-        } else {
-            if (coordField) coordField.value = "Por asignar";
-            if (coordRow) coordRow.style.display = 'none'; // terceros no ven este campo
-        }
+        populateCoordinatorOptions("");
+        if (coordRow) coordRow.style.display = '';
+        if (coordField) coordField.disabled = false;
         document.getElementById("modalDate").value = formatDateDisplay(parseYmdAsLocalDate(date));
         document.getElementById("modalTime").value = time;
-        if (statusField) statusField.value = "Pendiente";
+        if (statusField) statusField.value = "";
         if (pdfInput) pdfInput.value = "";
         if (pdfCurrent) pdfCurrent.innerText = "";
         if (pdfDownload) pdfDownload.innerHTML = "";
-        if (outcomeSection) outcomeSection.style.display = 'none';
+        if (outcomeSection) outcomeSection.style.display = '';
         if (deleteBtn) deleteBtn.style.display = 'none';
     }
     // Resto de campos: solo lectura al ver cita sin autenticación
@@ -519,8 +535,8 @@ async function confirmModal() {
     const company = document.getElementById("modalCompany").value;
     const vehicle = getModalVehicleValue();
     // Si el tercero no asigna coordinador, queda como "Por asignar"
-    const coordinator = document.getElementById("modalCoordinator").value.trim() || "Por asignar";
-    const status = (document.getElementById("modalStatus")?.value || "Pendiente").trim();
+    const coordinator = (document.getElementById("modalCoordinator")?.value || "").trim();
+    const status = (document.getElementById("modalStatus")?.value || "").trim();
     const pdfFile = document.getElementById("modalPdfFile")?.files?.[0] || null;
     const managerMode = canManageRevisions();
     let date, time;
@@ -536,8 +552,8 @@ async function confirmModal() {
         else { showTemporaryMessage("Fecha inválida.", "error"); return; }
         time = timeStr;
     }
-    if (!vehicle || !company || !type) {
-        showTemporaryMessage("Complete los campos obligatorios: tipo, empresa y vehículo.", "error");
+    if (!vehicle || !company || !type || !coordinator || !status) {
+        showTemporaryMessage("Complete los campos obligatorios: tipo, empresa, vehículo, coordinador y resultado.", "error");
         return;
     }
     if (pdfFile && pdfFile.type !== 'application/pdf') {
