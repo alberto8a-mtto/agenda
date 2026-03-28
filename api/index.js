@@ -10,20 +10,58 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Inicializar Firebase Admin
-if (!admin.apps.length) {
+let db = null;
+
+function initializeFirebaseAdmin() {
+  if (admin.apps.length) {
+    db = admin.firestore();
+    return;
+  }
+
+  const projectId = process.env.FIREBASE_PROJECT_ID;
+  const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+
+  if (serviceAccountJson) {
+    let serviceAccount;
+    try {
+      serviceAccount = JSON.parse(serviceAccountJson);
+    } catch (error) {
+      throw new Error('FIREBASE_SERVICE_ACCOUNT_JSON no es un JSON válido.');
+    }
+
+    // Vercel guarda saltos de línea escapados en private_key.
+    if (serviceAccount.private_key) {
+      serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, '\n');
+    }
+
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount),
+      projectId: projectId || serviceAccount.project_id
+    });
+    db = admin.firestore();
+    return;
+  }
+
+  // Fallback local si existe ADC en la máquina.
   admin.initializeApp({
     credential: admin.credential.applicationDefault(),
-    projectId: process.env.FIREBASE_PROJECT_ID
+    projectId
   });
+  db = admin.firestore();
 }
 
-const db = admin.firestore();
+function getDb() {
+  if (!db) {
+    initializeFirebaseAdmin();
+  }
+  return db;
+}
 
 // ==================== AUTENTICACIÓN ====================
 
 app.post('/api/auth/login', async (req, res) => {
   try {
+    const db = getDb();
     const { username, password } = req.body;
 
     if (!username || !password) {
@@ -71,6 +109,7 @@ app.post('/api/auth/login', async (req, res) => {
 
 app.get('/api/users', async (req, res) => {
   try {
+    const db = getDb();
     const usersSnapshot = await db.collection('users').get();
     const users = [];
 
@@ -84,12 +123,13 @@ app.get('/api/users', async (req, res) => {
     res.json(users);
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: 'Error al obtener usuarios' });
+    res.status(500).json({ error: `Error al obtener usuarios: ${error.message}` });
   }
 });
 
 app.post('/api/users', async (req, res) => {
   try {
+    const db = getDb();
     const { fullName, username, password, role, company } = req.body;
 
     if (!fullName || !username || !password || !role || !company) {
@@ -120,6 +160,7 @@ app.post('/api/users', async (req, res) => {
 
 app.delete('/api/users/:id', async (req, res) => {
   try {
+    const db = getDb();
     await db.collection('users').doc(req.params.id).delete();
     res.json({ message: 'Usuario eliminado' });
   } catch (error) {
@@ -130,6 +171,7 @@ app.delete('/api/users/:id', async (req, res) => {
 
 app.patch('/api/users/:id', async (req, res) => {
   try {
+    const db = getDb();
     const allowedFields = ['fullName', 'username', 'role', 'company', 'blocked'];
     const payload = {};
 
@@ -153,6 +195,7 @@ app.patch('/api/users/:id', async (req, res) => {
 
 app.patch('/api/users/:id/block', async (req, res) => {
   try {
+    const db = getDb();
     const { blocked } = req.body;
     await db.collection('users').doc(req.params.id).update({ blocked });
     res.json({ message: 'Estado de bloqueo actualizado' });
@@ -164,6 +207,7 @@ app.patch('/api/users/:id/block', async (req, res) => {
 
 app.patch('/api/users/:id/password', async (req, res) => {
   try {
+    const db = getDb();
     const { password } = req.body;
     await db.collection('users').doc(req.params.id).update({
       password,
@@ -180,6 +224,7 @@ app.patch('/api/users/:id/password', async (req, res) => {
 
 app.get('/api/appointments', async (req, res) => {
   try {
+    const db = getDb();
     const appointmentsSnapshot = await db.collection('appointments').get();
     const appointments = [];
 
@@ -199,6 +244,7 @@ app.get('/api/appointments', async (req, res) => {
 
 app.post('/api/appointments', async (req, res) => {
   try {
+    const db = getDb();
     const appointment = req.body;
     const docRef = await db.collection('appointments').add(appointment);
 
@@ -214,6 +260,7 @@ app.post('/api/appointments', async (req, res) => {
 
 app.patch('/api/appointments/:id', async (req, res) => {
   try {
+    const db = getDb();
     await db.collection('appointments').doc(req.params.id).update(req.body);
     res.json({ message: 'Cita actualizada' });
   } catch (error) {
@@ -224,6 +271,7 @@ app.patch('/api/appointments/:id', async (req, res) => {
 
 app.delete('/api/appointments/:id', async (req, res) => {
   try {
+    const db = getDb();
     await db.collection('appointments').doc(req.params.id).delete();
     res.json({ message: 'Cita eliminada' });
   } catch (error) {
