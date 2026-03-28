@@ -391,15 +391,6 @@ footer { text-align: center; font-size: 0.75rem; color: #5b6e8c; margin-top: 30p
     width: 100%;
     margin-top: 14px;
 }
-.auth-help {
-    margin-top: 16px;
-    font-size: 0.84rem;
-    color: #3d5d77;
-    line-height: 1.45;
-    background: #f5f9ff;
-    border-radius: 12px;
-    padding: 10px 12px;
-}
 @media (max-width: 560px) {
     .auth-hero {
         height: 200px;
