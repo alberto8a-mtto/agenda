@@ -449,6 +449,7 @@ function openModal(appId, date, time) {
     const pdfInput = document.getElementById('modalPdfFile');
     const pdfCurrent = document.getElementById('modalPdfCurrent');
     const pdfDownload = document.getElementById('modalPdfDownload');
+    const deleteBtn = document.getElementById('modalDeleteBtn');
     const managerMode = canManageRevisions();
     if (appId) {
         // Visualizar / editar cita existente
@@ -477,6 +478,7 @@ function openModal(appId, date, time) {
         // Coordinador visible; editable solo para coordinador autenticado (aquí se asigna)
         if (coordRow) coordRow.style.display = '';
         if (coordField) coordField.disabled = !managerMode;
+        if (deleteBtn) deleteBtn.style.display = managerMode ? '' : 'none';
     } else {
         // Nueva cita por tercero o coordinador
         editingAppId = null;
@@ -501,6 +503,7 @@ function openModal(appId, date, time) {
         if (pdfCurrent) pdfCurrent.innerText = "";
         if (pdfDownload) pdfDownload.innerHTML = "";
         if (outcomeSection) outcomeSection.style.display = 'none';
+        if (deleteBtn) deleteBtn.style.display = 'none';
     }
     // Resto de campos: solo lectura al ver cita sin autenticación
     const readOnly = !managerMode && !!appId;
@@ -509,7 +512,7 @@ function openModal(appId, date, time) {
     document.getElementById("appointmentModal").style.display = "flex";
 }
 
-function closeModal() { ['modalType','modalCompany','modalVehicle','modalVehicleTransegovia','modalCoordinator','modalStatus','modalPdfFile'].forEach(id => { const el = document.getElementById(id); if (el) el.disabled = false; }); const coordRow = document.getElementById('coordinatorRow'); if (coordRow) coordRow.style.display = ''; const outcomeSection = document.getElementById('reviewOutcomeSection'); if (outcomeSection) outcomeSection.style.display = 'none'; const pdfCurrent = document.getElementById('modalPdfCurrent'); if (pdfCurrent) pdfCurrent.innerText = ''; const pdfDownload = document.getElementById('modalPdfDownload'); if (pdfDownload) pdfDownload.innerHTML = ''; document.getElementById('modalConfirmBtn').style.display = ''; document.getElementById("appointmentModal").style.display = "none"; editingAppId = null; }
+function closeModal() { ['modalType','modalCompany','modalVehicle','modalVehicleTransegovia','modalCoordinator','modalStatus','modalPdfFile'].forEach(id => { const el = document.getElementById(id); if (el) el.disabled = false; }); const coordRow = document.getElementById('coordinatorRow'); if (coordRow) coordRow.style.display = ''; const outcomeSection = document.getElementById('reviewOutcomeSection'); if (outcomeSection) outcomeSection.style.display = 'none'; const pdfCurrent = document.getElementById('modalPdfCurrent'); if (pdfCurrent) pdfCurrent.innerText = ''; const pdfDownload = document.getElementById('modalPdfDownload'); if (pdfDownload) pdfDownload.innerHTML = ''; const deleteBtn = document.getElementById('modalDeleteBtn'); if (deleteBtn) deleteBtn.style.display = 'none'; document.getElementById('modalConfirmBtn').style.display = ''; document.getElementById("appointmentModal").style.display = "none"; editingAppId = null; }
 
 async function confirmModal() {
     const type = document.getElementById("modalType").value;
@@ -615,6 +618,7 @@ function renderConsolidatedTable() {
 function getStatusClass(status) { switch(status) { case "No se presenta": return "status-no-show"; case "habilitado": return "status-habilitado"; case "inhabilitado": return "status-inhabilitado"; case "condicionado": return "status-condicionado"; default: return "status-pendiente"; } }
 async function handleUploadClick(e) { const btn = e.currentTarget; const appId = btn.getAttribute('data-id'); const row = btn.closest('tr'); const fileInput = row.querySelector('.pdf-upload-input'); if (!fileInput || !fileInput.files[0]) { showTemporaryMessage("Seleccione un PDF.", "error"); return; } try { await uploadPdfFile(appId, fileInput.files[0]); showTemporaryMessage("PDF cargado.", "success"); renderConsolidatedTable(); renderCalendar(); } catch (error) { showTemporaryMessage(error.message || "Error al cargar PDF.", "error"); } }
 async function handleDeleteClick(e) { const id = e.currentTarget.getAttribute('data-id'); const app = appointments.find(a => a.id === id); if (!app) return; if (confirm(`Eliminar ${app.vehicle} - ${app.company} el ${app.date} a las ${app.time}?`)) { try { await deleteAppointment(id); renderCalendar(); renderConsolidatedTable(); showTemporaryMessage("Cita eliminada.", "success"); } catch (error) { showTemporaryMessage(error.message || "No fue posible eliminar la cita.", "error"); } } }
+async function handleModalDeleteClick() { if (!editingAppId) return; const app = appointments.find(a => a.id === editingAppId); if (!app) { showTemporaryMessage("Cita no encontrada.", "error"); return; } if (!confirm(`Eliminar ${app.vehicle} - ${app.company} el ${app.date} a las ${app.time}?`)) return; try { await deleteAppointment(editingAppId); closeModal(); renderCalendar(); renderConsolidatedTable(); showTemporaryMessage("Cita eliminada.", "success"); } catch (error) { showTemporaryMessage(error.message || "No fue posible eliminar la cita.", "error"); } }
 function escapeHtml(str) { if (!str) return ''; return str.replace(/[&<>]/g, m => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;' }[m])); }
 let globalMsgTimeout = null;
 function showTemporaryMessage(msg, type) { const div = document.getElementById("calendarMessage"); if (div) { div.innerHTML = msg; div.className = `msg ${type==="error"?"error-msg":type==="success"?"success-msg":""}`; div.style.display = "block"; if (globalMsgTimeout) clearTimeout(globalMsgTimeout); globalMsgTimeout = setTimeout(() => { div.style.display = "none"; div.innerHTML = ""; }, 4000); } else alert(msg); }
@@ -880,6 +884,7 @@ function bindGlobalEvents() {
     document.getElementById("prevWeekBtn").addEventListener("click", () => navigateWeek(-1));
     document.getElementById("nextWeekBtn").addEventListener("click", () => navigateWeek(1));
     document.getElementById("modalCompany").addEventListener("change", () => updateVehicleFieldVisibility(""));
+    document.getElementById("modalDeleteBtn").addEventListener("click", handleModalDeleteClick);
     document.getElementById("modalCancelBtn").addEventListener("click", closeModal);
     document.getElementById("modalConfirmBtn").addEventListener("click", confirmModal);
     window.addEventListener("click", (e) => { if (e.target === document.getElementById("appointmentModal")) closeModal(); });
