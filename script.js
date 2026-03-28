@@ -220,6 +220,49 @@ function getAppointmentPdfUrl(app) {
     return null;
 }
 
+function createPdfDownloadLink(url, fileName, label = "Descargar PDF") {
+    if (!url) return '<span class="badge">No cargado</span>';
+    const safeUrl = escapeHtml(url);
+    const safeName = escapeHtml(fileName || 'informe_revision.pdf');
+    const safeLabel = escapeHtml(label);
+    return `<a class="download-link pdf-download-link" href="#" data-url="${safeUrl}" data-filename="${safeName}">${safeLabel}</a>`;
+}
+
+async function triggerPdfDownload(url, fileName) {
+    if (!url) {
+        showTemporaryMessage("No hay PDF disponible para descargar.", "error");
+        return;
+    }
+
+    try {
+        const response = await fetch(url);
+        if (!response.ok) {
+            throw new Error("No se pudo obtener el PDF.");
+        }
+
+        const blob = await response.blob();
+        const objectUrl = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = objectUrl;
+        link.download = fileName || "informe_revision.pdf";
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(objectUrl);
+    } catch (error) {
+        showTemporaryMessage(error.message || "No se pudo descargar el PDF.", "error");
+    }
+}
+
+function attachPdfDownloadHandlers(scope = document) {
+    scope.querySelectorAll('.pdf-download-link').forEach(link => {
+        link.addEventListener('click', async (event) => {
+            event.preventDefault();
+            await triggerPdfDownload(link.dataset.url, link.dataset.filename);
+        });
+    });
+}
+
 function readPdfAsDataUrl(file) {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -416,8 +459,9 @@ function openModal(appId, date, time) {
         if (pdfDownload) {
             const pdfUrl = getAppointmentPdfUrl(app);
             pdfDownload.innerHTML = pdfUrl
-                ? `<a class="download-link" href="${pdfUrl}" target="_blank" rel="noopener noreferrer">Descargar informe PDF</a>`
+                ? createPdfDownloadLink(pdfUrl, app.pdfName || 'informe_revision.pdf', 'Descargar informe PDF')
                 : '<span class="badge">Sin informe cargado</span>';
+            attachPdfDownloadHandlers(pdfDownload);
         }
         if (outcomeSection) outcomeSection.style.display = managerMode ? '' : 'none';
         // Coordinador visible; editable solo para coordinador autenticado (aquí se asigna)
@@ -537,7 +581,7 @@ function renderConsolidatedTable() {
     let html = "";
     for (const app of sorted) {
         const pdfUrl = getAppointmentPdfUrl(app);
-        const pdfInfo = pdfUrl ? `<a class="download-link" href="${pdfUrl}" target="_blank" rel="noopener noreferrer">Descargar PDF</a>` : `<span class="badge">No cargado</span>`;
+        const pdfInfo = pdfUrl ? createPdfDownloadLink(pdfUrl, app.pdfName || 'informe_revision.pdf') : `<span class="badge">No cargado</span>`;
         let statusCell = `<span class="status-badge ${getStatusClass(app.status)}">${app.status||"Pendiente"}</span>`;
         html += `<tr data-id="${app.id}">
                      <td>${escapeHtml(app.revisionType)}</td>
@@ -551,6 +595,7 @@ function renderConsolidatedTable() {
         html += `</tr>`;
     }
     tbody.innerHTML = html;
+    attachPdfDownloadHandlers(tbody);
 }
 
 function getStatusClass(status) { switch(status) { case "No se presenta": return "status-no-show"; case "habilitado": return "status-habilitado"; case "inhabilitado": return "status-inhabilitado"; case "condicionado": return "status-condicionado"; default: return "status-pendiente"; } }
