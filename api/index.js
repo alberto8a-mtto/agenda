@@ -8,9 +8,13 @@ const app = express();
 
 // Middleware
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '1mb' }));
 
 let db = null;
+
+function getStorageBucketName(projectId) {
+  return process.env.FIREBASE_STORAGE_BUCKET || `${projectId}.firebasestorage.app`;
+}
 
 function initializeFirebaseAdmin() {
   if (admin.apps.length) {
@@ -34,9 +38,11 @@ function initializeFirebaseAdmin() {
       serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, '\n');
     }
 
+    const resolvedProjectId = projectId || serviceAccount.project_id;
     admin.initializeApp({
       credential: admin.credential.cert(serviceAccount),
-      projectId: projectId || serviceAccount.project_id
+      projectId: resolvedProjectId,
+      storageBucket: getStorageBucketName(resolvedProjectId)
     });
     db = admin.firestore();
     return;
@@ -45,7 +51,8 @@ function initializeFirebaseAdmin() {
   // Fallback local si existe ADC en la máquina.
   admin.initializeApp({
     credential: admin.credential.applicationDefault(),
-    projectId
+    projectId,
+    storageBucket: getStorageBucketName(projectId)
   });
   db = admin.firestore();
 }
@@ -55,6 +62,17 @@ function getDb() {
     initializeFirebaseAdmin();
   }
   return db;
+}
+
+function getStorageBucket() {
+  if (!admin.apps.length) {
+    initializeFirebaseAdmin();
+  }
+  return admin.storage().bucket();
+}
+
+function sanitizeFileName(fileName) {
+  return path.basename(fileName || 'informe.pdf').replace(/[^a-zA-Z0-9._-]/g, '_');
 }
 
 // ==================== AUTENTICACIÓN ====================
@@ -221,6 +239,40 @@ app.patch('/api/users/:id/password', async (req, res) => {
 });
 
 // ==================== CITAS ====================
+
+app.post('/api/uploads/pdfs/sign', async (req, res) => {
+  try {
+    const { appointmentId, fileName, contentType } = req.body;
+
+    if (!appointmentId || !fileName) {
+      return res.status(400).json({ error: 'appointmentId y fileName son requeridos' });
+    }
+
+    const bucket = getStorageBucket();
+    const safeFileName = sanitizeFileName(fileName);
+    const storagePath = `appointment-pdfs/${appointmentId}/${Date.now()}-${safeFileName}`;
+    const file = bucket.file(storagePath);
+    const uploadContentType = contentType || 'application/pdf';
+
+    const [uploadUrl] = await file.getSignedUrl({
+      version: 'v4',
+      action: 'write',
+      expires: Date.now() + 15 * 60 * 1000,
+      contentType: uploadContentType
+    });
+
+    const [downloadUrl] = await file.getSignedUrl({
+      version: 'v4',
+      action: 'read',
+      expires: new Date('2100-01-01T00:00:00.000Z')
+    });
+
+    res.json({ uploadUrl, downloadUrl, storagePath });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error al preparar carga de PDF' });
+  }
+});
 
 app.get('/api/appointments', async (req, res) => {
   try {

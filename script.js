@@ -10,6 +10,7 @@ let authConfig = { users: [] };
 
 // ---------- DATOS DE CITAS ----------
 let appointments = [];
+const MAX_PDF_SIZE_BYTES = 10 * 1024 * 1024;
 const STATUS_OPTIONS = ["Pendiente", "No se presenta", "habilitado", "inhabilitado", "condicionado"];
 const TIME_SLOTS = ["07:00", "08:00", "09:00", "10:00", "11:00", "13:00", "14:00", "15:00"];
 const DAYS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
@@ -163,7 +164,9 @@ function normalizeAppointments(items) {
         status: app.status || "Pendiente",
         email: app.email || "",
         pdfBase64: app.pdfBase64 || null,
-        pdfName: app.pdfName || null
+        pdfName: app.pdfName || null,
+        pdfUrl: app.pdfUrl || null,
+        storagePath: app.storagePath || null
     }));
 }
 
@@ -210,23 +213,55 @@ async function addOrUpdateAppointment(data) {
     }
 }
 
-function readPdfAsDataUrl(file) {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = (ev) => resolve(ev.target.result);
-        reader.onerror = () => reject(new Error("No se pudo leer el archivo PDF."));
-        reader.readAsDataURL(file);
+function getAppointmentPdfUrl(app) {
+    if (!app) return null;
+    if (app.pdfUrl) return app.pdfUrl;
+    if (app.pdfBase64 && app.pdfBase64.length > 50) return app.pdfBase64;
+    return null;
+}
+
+async function uploadPdfFile(appId, file) {
+    if (!file) throw new Error("Seleccione un PDF.");
+    if (file.type !== "application/pdf") throw new Error("Solo se permite informe en PDF.");
+    if (file.size > MAX_PDF_SIZE_BYTES) throw new Error("El PDF supera el límite de 10 MB.");
+
+    const signedUpload = await apiRequest("/api/uploads/pdfs/sign", {
+        method: "POST",
+        body: {
+            appointmentId: appId,
+            fileName: file.name,
+            contentType: file.type || "application/pdf"
+        }
+    });
+
+    const uploadResponse = await fetch(signedUpload.uploadUrl, {
+        method: "PUT",
+        headers: {
+            "Content-Type": file.type || "application/pdf"
+        },
+        body: file
+    });
+
+    if (!uploadResponse.ok) {
+        throw new Error("No se pudo subir el PDF al almacenamiento.");
+    }
+
+    await updateAppointmentPdf(appId, {
+        pdfName: file.name,
+        pdfUrl: signedUpload.downloadUrl,
+        storagePath: signedUpload.storagePath,
+        pdfBase64: null
     });
 }
 
-async function updateAppointmentPdf(appId, base64Data, fileName) {
+async function updateAppointmentPdf(appId, pdfData) {
     const idx = appointments.findIndex(a => a.id === appId);
     if (idx === -1) return false;
     await apiRequest(`/api/appointments/${appId}`, {
         method: "PATCH",
-        body: { pdfBase64: base64Data, pdfName: fileName }
+        body: pdfData
     });
-    appointments[idx] = { ...appointments[idx], pdfBase64: base64Data, pdfName: fileName };
+    appointments[idx] = { ...appointments[idx], ...pdfData };
     return true;
 }
 
@@ -389,9 +424,9 @@ function openModal(appId, date, time) {
         if (pdfInput) pdfInput.value = "";
         if (pdfCurrent) pdfCurrent.innerText = app.pdfName ? `Informe actual: ${app.pdfName}` : "Sin informe cargado.";
         if (pdfDownload) {
-            const hasPdf = app.pdfBase64 && app.pdfBase64.length > 50;
-            pdfDownload.innerHTML = hasPdf
-                ? `<a class="download-link" href="${app.pdfBase64}" download="${app.pdfName || 'informe_revision.pdf'}">Descargar informe PDF</a>`
+            const pdfUrl = getAppointmentPdfUrl(app);
+            pdfDownload.innerHTML = pdfUrl
+                ? `<a class="download-link" href="${pdfUrl}" target="_blank" rel="noopener noreferrer">Descargar informe PDF</a>`
                 : '<span class="badge">Sin informe cargado</span>';
         }
         if (outcomeSection) outcomeSection.style.display = managerMode ? '' : 'none';
@@ -462,6 +497,10 @@ async function confirmModal() {
         showTemporaryMessage("Solo se permite informe en PDF.", "error");
         return;
     }
+    if (pdfFile && pdfFile.size > MAX_PDF_SIZE_BYTES) {
+        showTemporaryMessage("El PDF supera el límite de 10 MB.", "error");
+        return;
+    }
     try {
         const result = await addOrUpdateAppointment({ id: editingAppId, revisionType: type, company, vehicle, coordinator, date, time, status });
         if (!result.success) {
@@ -474,10 +513,9 @@ async function confirmModal() {
             await updateAppointmentStatus(appId, status);
             if (pdfFile) {
                 try {
-                    const pdfBase64 = await readPdfAsDataUrl(pdfFile);
-                    await updateAppointmentPdf(appId, pdfBase64, pdfFile.name);
+                    await uploadPdfFile(appId, pdfFile);
                 } catch (e) {
-                    showTemporaryMessage("No se pudo cargar el PDF seleccionado.", "error");
+                    showTemporaryMessage(e.message || "No se pudo cargar el PDF seleccionado.", "error");
                     return;
                 }
             }
@@ -508,9 +546,9 @@ function renderConsolidatedTable() {
     const sorted = [...visibleAppointments].sort((a,b) => `${a.date}T${a.time}`.localeCompare(`${b.date}T${b.time}`));
     let html = "";
     for (const app of sorted) {
-        const hasPdf = app.pdfBase64 && app.pdfBase64.length > 50;
-        const showDownload = (app.company === "TRANSEGOVIA") && hasPdf;
-        const pdfInfo = showDownload ? `<a class="download-link" href="${app.pdfBase64}" download="${app.pdfName || 'informe_revision.pdf'}">Descargar PDF</a>` : (hasPdf ? `<span class="badge">PDF cargado (no disponible)</span>` : `<span class="badge">No cargado</span>`);
+        const pdfUrl = getAppointmentPdfUrl(app);
+        const showDownload = (app.company === "TRANSEGOVIA") && pdfUrl;
+        const pdfInfo = showDownload ? `<a class="download-link" href="${pdfUrl}" target="_blank" rel="noopener noreferrer">Descargar PDF</a>` : (pdfUrl ? `<span class="badge">PDF cargado (no disponible)</span>` : `<span class="badge">No cargado</span>`);
         let statusCell = `<span class="status-badge ${getStatusClass(app.status)}">${app.status||"Pendiente"}</span>`;
         html += `<tr data-id="${app.id}">
                      <td>${escapeHtml(app.revisionType)}</td>
@@ -527,7 +565,7 @@ function renderConsolidatedTable() {
 }
 
 function getStatusClass(status) { switch(status) { case "No se presenta": return "status-no-show"; case "habilitado": return "status-habilitado"; case "inhabilitado": return "status-inhabilitado"; case "condicionado": return "status-condicionado"; default: return "status-pendiente"; } }
-function handleUploadClick(e) { const btn = e.currentTarget; const appId = btn.getAttribute('data-id'); const row = btn.closest('tr'); const fileInput = row.querySelector('.pdf-upload-input'); if (!fileInput || !fileInput.files[0]) { showTemporaryMessage("Seleccione un PDF.", "error"); return; } const file = fileInput.files[0]; if (file.type !== 'application/pdf') { showTemporaryMessage("Solo PDF.", "error"); return; } const reader = new FileReader(); reader.onload = (ev) => { if (updateAppointmentPdf(appId, ev.target.result, file.name)) { showTemporaryMessage("PDF cargado.", "success"); renderConsolidatedTable(); renderCalendar(); } else showTemporaryMessage("Error.", "error"); }; reader.readAsDataURL(file); }
+async function handleUploadClick(e) { const btn = e.currentTarget; const appId = btn.getAttribute('data-id'); const row = btn.closest('tr'); const fileInput = row.querySelector('.pdf-upload-input'); if (!fileInput || !fileInput.files[0]) { showTemporaryMessage("Seleccione un PDF.", "error"); return; } try { await uploadPdfFile(appId, fileInput.files[0]); showTemporaryMessage("PDF cargado.", "success"); renderConsolidatedTable(); renderCalendar(); } catch (error) { showTemporaryMessage(error.message || "Error al cargar PDF.", "error"); } }
 async function handleDeleteClick(e) { const id = e.currentTarget.getAttribute('data-id'); const app = appointments.find(a => a.id === id); if (!app) return; if (confirm(`Eliminar ${app.vehicle} - ${app.company} el ${app.date} a las ${app.time}?`)) { try { await deleteAppointment(id); renderCalendar(); renderConsolidatedTable(); showTemporaryMessage("Cita eliminada.", "success"); } catch (error) { showTemporaryMessage(error.message || "No fue posible eliminar la cita.", "error"); } } }
 function escapeHtml(str) { if (!str) return ''; return str.replace(/[&<>]/g, m => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;' }[m])); }
 let globalMsgTimeout = null;
