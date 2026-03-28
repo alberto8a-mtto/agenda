@@ -569,12 +569,13 @@ function navigateWeek(delta) { const newStart = new Date(currentWeekStart); newS
 function renderConsolidatedTable() {
     const tbody = document.getElementById("appointmentsTbody");
     const adminActionsHeader = document.getElementById("adminActionsHeader");
+    const canManageAppointments = canManageRevisions();
     const isCompanyUser = authenticatedUser && authenticatedUser.role === "EMPRESA" && authenticatedUser.company && authenticatedUser.company !== "TODAS";
     const visibleAppointments = isCompanyUser ? appointments.filter(app => app.company === authenticatedUser.company) : appointments;
     if (!tbody) return;
-    if (adminActionsHeader) adminActionsHeader.style.display = "none";
+    if (adminActionsHeader) adminActionsHeader.style.display = canManageAppointments ? "table-cell" : "none";
     if (!visibleAppointments.length) {
-        tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;">No hay revisiones agendadas.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="${canManageAppointments ? 9 : 8}" style="text-align:center;">No hay revisiones agendadas.</td></tr>`;
         return;
     }
     const sorted = [...visibleAppointments].sort((a,b) => `${a.date}T${a.time}`.localeCompare(`${b.date}T${b.time}`));
@@ -592,6 +593,9 @@ function renderConsolidatedTable() {
                      <td>${app.time}</td>
                      <td>${pdfInfo}</td>
                      <td>${statusCell}</td>`;
+        if (canManageAppointments) {
+            html += `<td><button class="btn-small danger btn-delete-appointment" data-id="${app.id}">Eliminar</button></td>`;
+        }
         html += `</tr>`;
     }
     tbody.innerHTML = html;
@@ -826,6 +830,14 @@ function handleUsersTableClick(event) {
     if (target.classList.contains("btn-delete-user")) deleteUser(userId);
 }
 
+function handleAppointmentsTableClick(event) {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) return;
+    const appointmentId = target.getAttribute("data-id");
+    if (!appointmentId) return;
+    if (target.classList.contains("btn-delete-appointment")) handleDeleteClick(event);
+}
+
 function updateUIForAuth(loggedIn) {
     const statusSpan = document.getElementById("userStatusText");
     const logoutBtn = document.getElementById("logoutBtn");
@@ -854,6 +866,7 @@ function bindGlobalEvents() {
     document.getElementById("createUserBtn").addEventListener("click", createUser);
     document.getElementById("newUserRole").addEventListener("change", updateNewUserCompanyState);
     document.getElementById("usersTbody").addEventListener("click", handleUsersTableClick);
+    document.getElementById("appointmentsTbody").addEventListener("click", handleAppointmentsTableClick);
     document.getElementById("prevWeekBtn").addEventListener("click", () => navigateWeek(-1));
     document.getElementById("nextWeekBtn").addEventListener("click", () => navigateWeek(1));
     document.getElementById("modalCompany").addEventListener("change", () => updateVehicleFieldVisibility(""));
