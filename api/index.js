@@ -2,22 +2,13 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const admin = require('firebase-admin');
+const path = require('path');
 
 const app = express();
 
 // Middleware
 app.use(cors());
 app.use(express.json());
-
-// Inicializar Firebase
-const firebaseConfig = {
-  apiKey: process.env.FIREBASE_API_KEY,
-  authDomain: process.env.FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.FIREBASE_PROJECT_ID,
-  storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.FIREBASE_APP_ID
-};
 
 // Inicializar Firebase Admin
 if (!admin.apps.length) {
@@ -225,9 +216,18 @@ app.get('/api/health', (req, res) => {
 });
 
 // Servir frontend estático
-app.use(express.static('../'));
+const publicPath = path.join(__dirname, '..');
+app.use(express.static(publicPath));
+
+app.get('/', (req, res) => {
+  res.sendFile(path.join(publicPath, 'login.html'));
+});
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Servidor en puerto ${PORT}`));
+
+// En Vercel se exporta la app como función serverless; localmente sí levantamos puerto.
+if (!process.env.VERCEL) {
+  app.listen(PORT, () => console.log(`Servidor en puerto ${PORT}`));
+}
 
 module.exports = app;
