@@ -27,6 +27,17 @@
             <input type="password" id="authPassword" placeholder="Clave" autocomplete="current-password">
 
             <button id="authLoginBtn">Entrar</button>
+
+            <div id="authPasswordChangeSection" style="display:none; margin-top: 14px;">
+                <label for="authNewPassword">Nueva clave *</label>
+                <input type="password" id="authNewPassword" placeholder="Nueva clave" autocomplete="new-password">
+
+                <label for="authConfirmPassword">Confirmar nueva clave *</label>
+                <input type="password" id="authConfirmPassword" placeholder="Confirmar nueva clave" autocomplete="new-password">
+
+                <button id="authChangePasswordBtn" type="button">Guardar nueva clave</button>
+            </div>
+
             <div id="authMessage" class="msg" style="display:none; margin-top: 12px;"></div>
             </div>
         </section>

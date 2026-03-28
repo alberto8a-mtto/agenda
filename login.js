@@ -1,4 +1,5 @@
 const SESSION_STORAGE_KEY = "revisiones_active_session_v1";
+let pendingFirstLoginCredentials = null;
 
 async function apiRequest(path, options = {}) {
     const response = await fetch(path, {
@@ -36,6 +37,63 @@ function setSession(user) {
     }));
 }
 
+function toggleFirstLoginPasswordChange(show) {
+    const section = document.getElementById("authPasswordChangeSection");
+    const usernameInput = document.getElementById("authUsername");
+    const passwordInput = document.getElementById("authPassword");
+    const loginBtn = document.getElementById("authLoginBtn");
+    if (section) section.style.display = show ? "block" : "none";
+    if (usernameInput) usernameInput.disabled = show;
+    if (passwordInput) passwordInput.disabled = show;
+    if (loginBtn) loginBtn.style.display = show ? "none" : "inline-flex";
+}
+
+async function changePasswordFirstLogin() {
+    const newPasswordInput = document.getElementById("authNewPassword");
+    const confirmPasswordInput = document.getElementById("authConfirmPassword");
+    const newPassword = newPasswordInput ? newPasswordInput.value.trim() : "";
+    const confirmPassword = confirmPasswordInput ? confirmPasswordInput.value.trim() : "";
+
+    if (!pendingFirstLoginCredentials) {
+        showAuthMessage("Primero inicie sesión con su clave temporal.", "error");
+        return;
+    }
+    if (!newPassword || !confirmPassword) {
+        showAuthMessage("Ingrese y confirme la nueva clave.", "error");
+        return;
+    }
+    if (newPassword.length < 4) {
+        showAuthMessage("La nueva clave debe tener al menos 4 caracteres.", "error");
+        return;
+    }
+    if (newPassword !== confirmPassword) {
+        showAuthMessage("La confirmación no coincide con la nueva clave.", "error");
+        return;
+    }
+    if (newPassword === pendingFirstLoginCredentials.password) {
+        showAuthMessage("La nueva clave debe ser diferente a la temporal.", "error");
+        return;
+    }
+
+    try {
+        const user = await apiRequest("/api/auth/change-password", {
+            method: "POST",
+            body: {
+                username: pendingFirstLoginCredentials.username,
+                currentPassword: pendingFirstLoginCredentials.password,
+                newPassword
+            }
+        });
+
+        setSession(user);
+        pendingFirstLoginCredentials = null;
+        showAuthMessage("Clave actualizada. Redirigiendo...", "success");
+        window.location.href = "index.html";
+    } catch (error) {
+        showAuthMessage(error.message || "No fue posible cambiar la clave.", "error");
+    }
+}
+
 function hasActiveSession() {
     const raw = sessionStorage.getItem(SESSION_STORAGE_KEY);
     if (!raw) return false;
@@ -67,6 +125,16 @@ async function login() {
             }
         });
 
+        if (user.mustChangePassword === true) {
+            pendingFirstLoginCredentials = {
+                username: username.trim(),
+                password: password.trim()
+            };
+            toggleFirstLoginPasswordChange(true);
+            showAuthMessage("Debe cambiar su clave temporal para continuar.", "error");
+            return;
+        }
+
         setSession(user);
         showAuthMessage("Acceso exitoso. Redirigiendo...", "success");
         window.location.href = "index.html";
@@ -81,11 +149,20 @@ function initLoginPage() {
         return;
     }
     const loginBtn = document.getElementById("authLoginBtn");
+    const changePasswordBtn = document.getElementById("authChangePasswordBtn");
     const passwordInput = document.getElementById("authPassword");
+    const confirmPasswordInput = document.getElementById("authConfirmPassword");
+    toggleFirstLoginPasswordChange(false);
     if (loginBtn) loginBtn.addEventListener("click", login);
+    if (changePasswordBtn) changePasswordBtn.addEventListener("click", changePasswordFirstLogin);
     if (passwordInput) {
         passwordInput.addEventListener("keydown", (e) => {
             if (e.key === "Enter") login();
+        });
+    }
+    if (confirmPasswordInput) {
+        confirmPasswordInput.addEventListener("keydown", (e) => {
+            if (e.key === "Enter") changePasswordFirstLogin();
         });
     }
 }

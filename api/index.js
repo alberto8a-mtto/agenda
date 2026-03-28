@@ -115,11 +115,65 @@ app.post('/api/auth/login', async (req, res) => {
       username: user.username,
       fullName: user.fullName,
       role: user.role,
-      company: user.company
+      company: user.company,
+      mustChangePassword: user.mustChangePassword === true
     });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Error en servidor' });
+  }
+});
+
+app.post('/api/auth/change-password', async (req, res) => {
+  try {
+    const db = getDb();
+    const { username, currentPassword, newPassword } = req.body;
+
+    if (!username || !currentPassword || !newPassword) {
+      return res.status(400).json({ error: 'Usuario, clave actual y nueva clave son requeridos' });
+    }
+    if (String(newPassword).trim().length < 4) {
+      return res.status(400).json({ error: 'La nueva clave debe tener al menos 4 caracteres' });
+    }
+
+    const usersSnapshot = await db
+      .collection('users')
+      .where('username', '==', username)
+      .limit(1)
+      .get();
+
+    if (usersSnapshot.empty) {
+      return res.status(401).json({ error: 'Credenciales inválidas' });
+    }
+
+    const userDoc = usersSnapshot.docs[0];
+    const user = userDoc.data();
+
+    if (user.password !== currentPassword) {
+      return res.status(401).json({ error: 'Credenciales inválidas' });
+    }
+    if (user.blocked) {
+      return res.status(403).json({ error: 'Cuenta bloqueada' });
+    }
+
+    await db.collection('users').doc(userDoc.id).update({
+      password: String(newPassword).trim(),
+      mustChangePassword: false,
+      blocked: false,
+      updatedAt: new Date()
+    });
+
+    res.json({
+      userId: userDoc.id,
+      username: user.username,
+      fullName: user.fullName,
+      role: user.role,
+      company: user.company,
+      mustChangePassword: false
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error al cambiar contraseña' });
   }
 });
 
@@ -161,6 +215,7 @@ app.post('/api/users', async (req, res) => {
       role,
       company,
       blocked: false,
+      mustChangePassword: true,
       createdAt: new Date()
     };
 
@@ -229,6 +284,7 @@ app.patch('/api/users/:id/password', async (req, res) => {
     const { password } = req.body;
     await db.collection('users').doc(req.params.id).update({
       password,
+      mustChangePassword: true,
       blocked: false
     });
     res.json({ message: 'Contraseña actualizada' });
