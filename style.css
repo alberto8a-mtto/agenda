@@ -530,15 +530,23 @@ footer { text-align: center; font-size: 0.75rem; color: #5b6e8c; margin-top: 30p
 [data-theme="dark"] .calendar-cell,
 [data-theme="dark"] .calendar-time-header,
 [data-theme="dark"] .calendar-day-header,
+[data-theme="dark"] .calendar-time-label,
 [data-theme="dark"] th {
     background: #111827;
 }
-[data-theme="dark"] .calendar-cell:hover {
+[data-theme="dark"] .calendar-cell:not(.appointment-block):hover {
     background: #1f2937;
 }
+[data-theme="dark"] .calendar-cell.appointment-block {
+    color: #0f172a;
+}
+[data-theme="dark"] .company-rapido-ochoa { background-color: #fee2e2; border-left-color: #dc2626; }
+[data-theme="dark"] .company-especiales { background-color: #e0f2e9; border-left-color: #10b981; }
+[data-theme="dark"] .company-transegovia { background-color: #fff1e7; border-left-color: #ff5a00; }
 [data-theme="dark"] .company-default {
     background-color: #1e293b;
     border-left-color: #94a3b8;
+    color: #e2e8f0;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -605,14 +613,22 @@ footer { text-align: center; font-size: 0.75rem; color: #5b6e8c; margin-top: 30p
     :root[data-theme="system"] .calendar-cell,
     :root[data-theme="system"] .calendar-time-header,
     :root[data-theme="system"] .calendar-day-header,
+    :root[data-theme="system"] .calendar-time-label,
     :root[data-theme="system"] th {
         background: #111827;
     }
-    :root[data-theme="system"] .calendar-cell:hover {
+    :root[data-theme="system"] .calendar-cell:not(.appointment-block):hover {
         background: #1f2937;
     }
+    :root[data-theme="system"] .calendar-cell.appointment-block {
+        color: #0f172a;
+    }
+    :root[data-theme="system"] .company-rapido-ochoa { background-color: #fee2e2; border-left-color: #dc2626; }
+    :root[data-theme="system"] .company-especiales { background-color: #e0f2e9; border-left-color: #10b981; }
+    :root[data-theme="system"] .company-transegovia { background-color: #fff1e7; border-left-color: #ff5a00; }
     :root[data-theme="system"] .company-default {
         background-color: #1e293b;
         border-left-color: #94a3b8;
+        color: #e2e8f0;
     }
 }
