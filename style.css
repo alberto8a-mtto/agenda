@@ -527,6 +527,17 @@ footer { text-align: center; font-size: 0.75rem; color: #5b6e8c; margin-top: 30p
 [data-theme="dark"] td {
     border-color: #334155;
 }
+[data-theme="dark"] .card-consolidated .table-wrapper,
+[data-theme="dark"] .card-consolidated table,
+[data-theme="dark"] tbody td {
+    background: #111827;
+}
+[data-theme="dark"] tbody td {
+    color: #e2e8f0;
+}
+[data-theme="dark"] tbody tr:hover td {
+    background: #1f2937;
+}
 [data-theme="dark"] .calendar-cell,
 [data-theme="dark"] .calendar-time-header,
 [data-theme="dark"] .calendar-day-header,
@@ -609,6 +620,17 @@ footer { text-align: center; font-size: 0.75rem; color: #5b6e8c; margin-top: 30p
     :root[data-theme="system"] th,
     :root[data-theme="system"] td {
         border-color: #334155;
+    }
+    :root[data-theme="system"] .card-consolidated .table-wrapper,
+    :root[data-theme="system"] .card-consolidated table,
+    :root[data-theme="system"] tbody td {
+        background: #111827;
+    }
+    :root[data-theme="system"] tbody td {
+        color: #e2e8f0;
+    }
+    :root[data-theme="system"] tbody tr:hover td {
+        background: #1f2937;
     }
     :root[data-theme="system"] .calendar-cell,
     :root[data-theme="system"] .calendar-time-header,
