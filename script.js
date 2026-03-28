@@ -10,7 +10,7 @@ let authConfig = { users: [] };
 
 // ---------- DATOS DE CITAS ----------
 let appointments = [];
-const MAX_PDF_SIZE_BYTES = 10 * 1024 * 1024;
+const MAX_PDF_SIZE_BYTES = 600 * 1024;
 const STATUS_OPTIONS = ["Pendiente", "No se presenta", "habilitado", "inhabilitado", "condicionado"];
 const TIME_SLOTS = ["07:00", "08:00", "09:00", "10:00", "11:00", "13:00", "14:00", "15:00"];
 const DAYS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
@@ -220,37 +220,27 @@ function getAppointmentPdfUrl(app) {
     return null;
 }
 
+function readPdfAsDataUrl(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (ev) => resolve(ev.target.result);
+        reader.onerror = () => reject(new Error("No se pudo leer el archivo PDF."));
+        reader.readAsDataURL(file);
+    });
+}
+
 async function uploadPdfFile(appId, file) {
     if (!file) throw new Error("Seleccione un PDF.");
     if (file.type !== "application/pdf") throw new Error("Solo se permite informe en PDF.");
-    if (file.size > MAX_PDF_SIZE_BYTES) throw new Error("El PDF supera el límite de 10 MB.");
+    if (file.size > MAX_PDF_SIZE_BYTES) throw new Error("El PDF supera el límite de 600 KB permitido por el plan actual.");
 
-    const signedUpload = await apiRequest("/api/uploads/pdfs/sign", {
-        method: "POST",
-        body: {
-            appointmentId: appId,
-            fileName: file.name,
-            contentType: file.type || "application/pdf"
-        }
-    });
-
-    const uploadResponse = await fetch(signedUpload.uploadUrl, {
-        method: "PUT",
-        headers: {
-            "Content-Type": file.type || "application/pdf"
-        },
-        body: file
-    });
-
-    if (!uploadResponse.ok) {
-        throw new Error("No se pudo subir el PDF al almacenamiento.");
-    }
+    const pdfBase64 = await readPdfAsDataUrl(file);
 
     await updateAppointmentPdf(appId, {
         pdfName: file.name,
-        pdfUrl: signedUpload.downloadUrl,
-        storagePath: signedUpload.storagePath,
-        pdfBase64: null
+        pdfUrl: null,
+        storagePath: null,
+        pdfBase64
     });
 }
 
@@ -498,7 +488,7 @@ async function confirmModal() {
         return;
     }
     if (pdfFile && pdfFile.size > MAX_PDF_SIZE_BYTES) {
-        showTemporaryMessage("El PDF supera el límite de 10 MB.", "error");
+        showTemporaryMessage("El PDF supera el límite de 600 KB permitido por el plan actual.", "error");
         return;
     }
     try {
