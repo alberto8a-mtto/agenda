@@ -102,8 +102,9 @@ button.secondary:hover {
     border: 1px solid #e9eef3;
 }
 .card-consolidated {
-    margin-left: 0;
-    margin-right: 0;
+    max-width: 1220px;
+    margin-left: auto;
+    margin-right: auto;
 }
 .card h2 {
     margin-top: 0;
