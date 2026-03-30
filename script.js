@@ -242,17 +242,9 @@ async function addOrUpdateAppointment(data) {
     if (data.id) {
         const idx = appointments.findIndex(a => a.id === data.id);
         if (idx === -1) return { success: false, message: "Cita no encontrada." };
-        const payload = {
-            revisionType: data.revisionType,
-            company: data.company,
-            vehicle: data.vehicle,
-            coordinator: data.coordinator,
-            date: data.date,
-            time: data.time,
-            status: data.status
-        };
+        const payload = { ...appointments[idx], ...data };
         await apiRequest(`/api/appointments/${data.id}`, { method: "PATCH", body: payload });
-        appointments[idx] = { ...appointments[idx], ...payload };
+        appointments[idx] = payload;
         return { success: true, message: `Cita actualizada para ${data.vehicle} - ${data.company}.`, appointmentId: data.id };
     } else {
         const newApp = {
