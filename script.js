@@ -397,15 +397,13 @@ function buildDocumentCell(app, docType, canUpload) {
         : `<span class="badge">No cargado</span>`;
 
     if (!canUpload) {
-        return `<div class="doc-cell-content">${downloadHtml}</div>`;
+        return downloadHtml;
     }
 
-    return `<div class="doc-cell-content">
-                ${downloadHtml}
-                <div class="upload-widget" style="justify-content:center;">
-                <input type="file" class="doc-upload-input" data-doc-type="${docType}" data-id="${app.id}" accept="application/pdf">
+    return `${downloadHtml}
+            <div class="upload-widget" style="margin-top:6px; justify-content:center;">
+                <input type="file" class="doc-upload-input" data-doc-type="${docType}" data-id="${app.id}" accept="application/pdf" style="max-width: 170px; font-size: 0.68rem;">
                 <button class="btn-small btn-upload-document" data-doc-type="${docType}" data-id="${app.id}">Subir</button>
-                </div>
             </div>`;
 }
 
@@ -755,10 +753,10 @@ function renderConsolidatedTable() {
                      <td>${escapeHtml(getCoordinatorLabel(app.coordinator))}</td>
                      <td>${app.date}</td>
                      <td>${app.time}</td>
-                     <td class="doc-cell"><div class="doc-cell-content">${pdfInfo}</div></td>
-                     <td class="doc-cell">${remisionCell}</td>
-                     <td class="doc-cell">${ordenPedidoCell}</td>
-                     <td class="doc-cell">${facturaCell}</td>
+                     <td>${pdfInfo}</td>
+                     <td>${remisionCell}</td>
+                     <td>${ordenPedidoCell}</td>
+                     <td>${facturaCell}</td>
                      <td>${statusCell}</td>`;
         if (canManageAppointments) {
             html += `<td><button class="btn-small danger btn-delete-appointment" data-id="${app.id}">Eliminar</button></td>`;
