@@ -408,7 +408,7 @@ function buildDocumentCell(app, docType, canUpload) {
                 ${downloadHtml}
                 <div class="upload-widget" style="justify-content:center;">
                 <input type="file" class="doc-upload-input" data-doc-type="${docType}" data-id="${app.id}" accept="application/pdf">
-                <button class="btn-small btn-upload-document" data-doc-type="${docType}" data-id="${app.id}">Subir</button>
+                <button class="btn-small btn-upload-document" data-doc-type="${docType}" data-id="${app.id}">${docUrl ? "Reemplazar" : "Subir"}</button>
                 </div>
             </div>`;
 }
