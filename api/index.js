@@ -11,7 +11,6 @@ app.use(cors());
 app.use(express.json({ limit: '2mb' }));
 
 let db = null;
-const DEFAULT_COMPANIES = ['RAPIDO OCHOA', 'ESPECIALES', 'TRANSEGOVIA', 'ARAUCA', 'COLGAS', 'TVS', 'TRANSORIENTE'];
 
 function getStorageBucketName(projectId) {
   return process.env.FIREBASE_STORAGE_BUCKET || `${projectId}.firebasestorage.app`;
@@ -74,49 +73,6 @@ function getStorageBucket() {
 
 function sanitizeFileName(fileName) {
   return path.basename(fileName || 'informe.pdf').replace(/[^a-zA-Z0-9._-]/g, '_');
-}
-
-function normalizeCompanyName(value) {
-  return String(value || '').trim().toUpperCase();
-}
-
-function normalizeCompanyNames(values) {
-  const unique = [];
-  for (const value of values || []) {
-    const normalized = normalizeCompanyName(value);
-    if (!normalized) continue;
-    if (unique.includes(normalized)) continue;
-    unique.push(normalized);
-  }
-  return unique;
-}
-
-async function getCompanyNamesFromDb(db) {
-  const snapshot = await db.collection('companies').get();
-  const names = [];
-  snapshot.forEach((doc) => {
-    const data = doc.data() || {};
-    if (data.name) {
-      names.push(data.name);
-    }
-  });
-  return normalizeCompanyNames(names);
-}
-
-async function ensureDefaultCompanies(db) {
-  const existing = await getCompanyNamesFromDb(db);
-  if (existing.length) return existing;
-
-  const batch = db.batch();
-  for (const name of DEFAULT_COMPANIES) {
-    const ref = db.collection('companies').doc();
-    batch.set(ref, {
-      name,
-      createdAt: new Date()
-    });
-  }
-  await batch.commit();
-  return [...DEFAULT_COMPANIES];
 }
 
 // ==================== AUTENTICACIÓN ====================
@@ -223,43 +179,6 @@ app.post('/api/auth/change-password', async (req, res) => {
 
 // ==================== USUARIOS ====================
 
-app.get('/api/companies', async (req, res) => {
-  try {
-    const db = getDb();
-    const companies = await ensureDefaultCompanies(db);
-    res.json(companies);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Error al obtener empresas' });
-  }
-});
-
-app.post('/api/companies', async (req, res) => {
-  try {
-    const db = getDb();
-    const name = normalizeCompanyName(req.body?.name);
-
-    if (!name) {
-      return res.status(400).json({ error: 'El nombre de la empresa es requerido' });
-    }
-
-    const existing = await getCompanyNamesFromDb(db);
-    if (existing.includes(name)) {
-      return res.status(409).json({ error: 'La empresa ya existe' });
-    }
-
-    const docRef = await db.collection('companies').add({
-      name,
-      createdAt: new Date()
-    });
-
-    res.json({ id: docRef.id, name });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Error al crear empresa' });
-  }
-});
-
 app.get('/api/users', async (req, res) => {
   try {
     const db = getDb();
@@ -294,7 +213,7 @@ app.post('/api/users', async (req, res) => {
       username,
       password,
       role,
-      company: role === 'EMPRESA' ? normalizeCompanyName(company) : 'TODAS',
+      company,
       blocked: false,
       mustChangePassword: true,
       createdAt: new Date()
@@ -337,13 +256,6 @@ app.patch('/api/users/:id', async (req, res) => {
 
     if (!Object.keys(payload).length) {
       return res.status(400).json({ error: 'No hay campos válidos para actualizar' });
-    }
-
-    if (Object.prototype.hasOwnProperty.call(payload, 'company')) {
-      payload.company = normalizeCompanyName(payload.company);
-    }
-    if (Object.prototype.hasOwnProperty.call(payload, 'role') && payload.role !== 'EMPRESA') {
-      payload.company = 'TODAS';
     }
 
     await db.collection('users').doc(req.params.id).update(payload);

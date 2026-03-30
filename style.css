@@ -292,9 +292,6 @@ footer { text-align: center; font-size: 0.75rem; color: #5b6e8c; margin-top: 30p
     .card-consolidated {
         max-width: 100%;
     }
-    .company-management-row {
-        grid-template-columns: 1fr;
-    }
 }
 .user-management-grid {
     display: grid;
@@ -308,23 +305,6 @@ footer { text-align: center; font-size: 0.75rem; color: #5b6e8c; margin-top: 30p
     border: 1px solid #cbd5e1;
     border-radius: 12px;
     padding: 10px;
-}
-.company-management-row {
-    margin-top: 12px;
-    display: grid;
-    grid-template-columns: minmax(220px, 360px) auto 1fr;
-    gap: 10px;
-    align-items: center;
-}
-.company-management-row input {
-    width: 100%;
-    border: 1px solid #cbd5e1;
-    border-radius: 12px;
-    padding: 10px;
-}
-.company-management-row span {
-    font-size: 0.78rem;
-    color: #475569;
 }
 .btn-reset-password {
     margin-left: 6px;
