@@ -365,19 +365,6 @@ function readPdfAsDataUrl(file) {
     });
 }
 
-async function uploadPdfToStorage(appId, file) {
-    const pdfBase64 = await readPdfAsDataUrl(file);
-    return apiRequest("/api/uploads/pdfs", {
-        method: "POST",
-        body: {
-            appointmentId: appId,
-            fileName: file.name,
-            contentType: file.type || "application/pdf",
-            pdfBase64
-        }
-    });
-}
-
 async function updateAppointmentDocument(appId, docType, filePayload) {
     const config = getDocumentConfig(docType);
     if (!config) throw new Error("Tipo de documento no soportado.");
@@ -439,13 +426,13 @@ async function uploadPdfFile(appId, file) {
     if (file.type !== "application/pdf") throw new Error("Solo se permite informe en PDF.");
     if (file.size > MAX_PDF_SIZE_BYTES) throw new Error("El PDF supera el límite de 600 KB permitido por el plan actual.");
 
-    const uploadedFile = await uploadPdfToStorage(appId, file);
+    const pdfBase64 = await readPdfAsDataUrl(file);
 
     await updateAppointmentPdf(appId, {
         pdfName: file.name,
-        pdfUrl: uploadedFile.downloadUrl,
-        storagePath: uploadedFile.storagePath,
-        pdfBase64: null
+        pdfUrl: null,
+        storagePath: null,
+        pdfBase64
     });
 }
 
