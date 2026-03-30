@@ -302,7 +302,7 @@ function getAppointmentDocumentName(app, docType) {
 }
 
 function getPdfIcon() {
-    return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="pdf-icon"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><text x="8" y="17" font-size="10" font-weight="bold" fill="currentColor">PDF</text></svg>`;
+        return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true" class="pdf-icon"><path d="M7 2.75h6.9L19.25 8v12.25A1.75 1.75 0 0 1 17.5 22h-10A1.75 1.75 0 0 1 5.75 20.25v-15A2.5 2.5 0 0 1 7 2.75Z" fill="#fff" stroke="#D92D20" stroke-width="1.5"/><path d="M13.75 2.75V8h5.25" stroke="#D92D20" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><rect x="7.4" y="12.1" width="9.2" height="5.4" rx="1.2" fill="#D92D20"/><path d="M9 16v-2.35h1.35c.79 0 1.24.45 1.24 1.12S11.14 16 10.35 16H9Zm3.5 0v-2.35h.95c.96 0 1.55.43 1.55 1.17 0 .75-.59 1.18-1.55 1.18h-.95Zm-3.5-.82h1.13c.3 0 .48-.14.48-.41s-.18-.41-.48-.41H9v.82Zm4.35 0h.27c.45 0 .72-.15.72-.36 0-.2-.27-.35-.72-.35h-.27v.71Zm2.08.82v-2.35H17v.71h-.9v.24h.83v.68h-.83V16h-.9Z" fill="#fff"/></svg>`;
 }
 
 function createPdfDownloadLink(url, fileName, label = "Descargar PDF") {
