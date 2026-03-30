@@ -404,7 +404,7 @@ function buildDocumentCell(app, docType, canUpload) {
                 ${downloadHtml}
                 <div class="upload-widget" style="justify-content:center;">
                 <input type="file" class="doc-upload-input" data-doc-type="${docType}" data-id="${app.id}" accept="application/pdf">
-                <button class="btn-small btn-upload-document" data-doc-type="${docType}" data-id="${app.id}">${docUrl ? "Reemplazar" : "Subir"}</button>
+                <button class="btn-small btn-upload-document" data-doc-type="${docType}" data-id="${app.id}">Subir</button>
                 </div>
             </div>`;
 }
@@ -776,31 +776,11 @@ async function handleDocumentUploadClick(buttonElement) {
     const row = buttonElement.closest("tr");
     if (!appId || !docType || !row) return;
 
-    if (docType === "ordenPedido" && !canUploadOrderDocument()) {
-        showTemporaryMessage("No tiene permisos para cargar orden de pedido.", "error");
-        return;
-    }
-    if ((docType === "remision" || docType === "factura") && !canUploadCoordinatorDocuments()) {
-        showTemporaryMessage("No tiene permisos para cargar este documento.", "error");
-        return;
-    }
-
     const fileInput = row.querySelector(`.doc-upload-input[data-id="${appId}"][data-doc-type="${docType}"]`);
-    if (!fileInput) {
-        showTemporaryMessage("No fue posible abrir el selector de archivo.", "error");
+    if (!fileInput || !fileInput.files || !fileInput.files[0]) {
+        showTemporaryMessage("Seleccione un PDF para cargar.", "error");
         return;
     }
-
-    fileInput.value = "";
-    fileInput.click();
-}
-
-async function handleDocumentUploadFileInput(inputElement) {
-    const appId = inputElement.getAttribute("data-id");
-    const docType = inputElement.getAttribute("data-doc-type");
-    const file = inputElement.files && inputElement.files[0] ? inputElement.files[0] : null;
-
-    if (!appId || !docType || !file) return;
 
     if (docType === "ordenPedido" && !canUploadOrderDocument()) {
         showTemporaryMessage("No tiene permisos para cargar orden de pedido.", "error");
@@ -812,15 +792,13 @@ async function handleDocumentUploadFileInput(inputElement) {
     }
 
     try {
-        await uploadAppointmentDocument(appId, docType, file);
+        await uploadAppointmentDocument(appId, docType, fileInput.files[0]);
         const label = getDocumentConfig(docType)?.label || "Documento";
-        showTemporaryMessage(`${label} cargado correctamente.`, "success");
+        showTemporaryMessage(`${label} cargada correctamente.`, "success");
         renderConsolidatedTable();
         renderCalendar();
     } catch (error) {
         showTemporaryMessage(error.message || "No fue posible cargar el documento.", "error");
-    } finally {
-        inputElement.value = "";
     }
 }
 async function handleDeleteClick(e) { const id = e.currentTarget.getAttribute('data-id'); const app = appointments.find(a => a.id === id); if (!app) return; if (confirm(`Eliminar ${app.vehicle} - ${app.company} el ${app.date} a las ${app.time}?`)) { try { await deleteAppointment(id); renderCalendar(); renderConsolidatedTable(); showTemporaryMessage("Cita eliminada.", "success"); } catch (error) { showTemporaryMessage(error.message || "No fue posible eliminar la cita.", "error"); } } }
@@ -1107,14 +1085,6 @@ function handleAppointmentsTableClick(event) {
     if (target.classList.contains("btn-delete-appointment")) handleDeleteClick(event);
 }
 
-function handleAppointmentsTableChange(event) {
-    const target = event.target;
-    if (!(target instanceof HTMLInputElement)) return;
-    if (target.classList.contains("doc-upload-input")) {
-        handleDocumentUploadFileInput(target);
-    }
-}
-
 function updateUIForAuth(loggedIn) {
     const statusSpan = document.getElementById("userStatusText");
     const logoutBtn = document.getElementById("logoutBtn");
@@ -1145,7 +1115,6 @@ function bindGlobalEvents() {
     document.getElementById("newUserRole").addEventListener("change", updateNewUserCompanyState);
     document.getElementById("usersTbody").addEventListener("click", handleUsersTableClick);
     document.getElementById("appointmentsTbody").addEventListener("click", handleAppointmentsTableClick);
-    document.getElementById("appointmentsTbody").addEventListener("change", handleAppointmentsTableChange);
     document.getElementById("prevWeekBtn").addEventListener("click", () => navigateWeek(-1));
     document.getElementById("nextWeekBtn").addEventListener("click", () => navigateWeek(1));
     document.getElementById("modalCompany").addEventListener("change", () => updateVehicleFieldVisibility(""));
