@@ -197,6 +197,7 @@ function normalizeAppointments(items) {
         company: normalizeCompanyName(app.company) || getDefaultCompany(),
         vehicle: app.vehicle || "SIN DATOS",
         coordinator: app.coordinator || "",
+        observations: app.observations || "",
         status: app.status || "Pendiente",
         email: app.email || "",
         pdfBase64: app.pdfBase64 || null,
@@ -235,6 +236,7 @@ async function addOrUpdateAppointment(data) {
             company: data.company,
             vehicle: data.vehicle,
             coordinator: data.coordinator,
+            observations: data.observations || "",
             date: data.date,
             time: data.time,
             email: data.email || "",
@@ -496,6 +498,7 @@ function openModal(appId, date, time) {
     const coordField = document.getElementById('modalCoordinator');
     const outcomeSection = document.getElementById('reviewOutcomeSection');
     const statusField = document.getElementById('modalStatus');
+    const observationsField = document.getElementById('modalObservations');
     const pdfInput = document.getElementById('modalPdfFile');
     const pdfCurrent = document.getElementById('modalPdfCurrent');
     const pdfDownload = document.getElementById('modalPdfDownload');
@@ -515,6 +518,7 @@ function openModal(appId, date, time) {
         document.getElementById("modalDate").value = formatDateDisplay(parseYmdAsLocalDate(app.date));
         document.getElementById("modalTime").value = app.time;
         if (statusField) statusField.value = app.status || "";
+        if (observationsField) observationsField.value = app.observations || "";
         if (pdfInput) pdfInput.value = "";
         if (pdfCurrent) pdfCurrent.innerText = app.pdfName ? `Informe actual: ${app.pdfName}` : "Sin informe cargado.";
         if (pdfDownload) {
@@ -542,6 +546,7 @@ function openModal(appId, date, time) {
         document.getElementById("modalDate").value = formatDateDisplay(parseYmdAsLocalDate(date));
         document.getElementById("modalTime").value = time;
         if (statusField) statusField.value = "";
+        if (observationsField) observationsField.value = "";
         if (pdfInput) pdfInput.value = "";
         if (pdfCurrent) pdfCurrent.innerText = "";
         if (pdfDownload) pdfDownload.innerHTML = "";
@@ -550,12 +555,12 @@ function openModal(appId, date, time) {
     }
     // Resto de campos: solo lectura al ver cita sin autenticación
     const readOnly = !managerMode && !!appId;
-    ['modalType','modalCompany','modalVehicle','modalVehicleTransegovia','modalStatus','modalPdfFile'].forEach(id => { const el = document.getElementById(id); if (el) el.disabled = readOnly; });
+    ['modalType','modalCompany','modalVehicle','modalVehicleTransegovia','modalStatus','modalObservations','modalPdfFile'].forEach(id => { const el = document.getElementById(id); if (el) el.disabled = readOnly; });
     document.getElementById('modalConfirmBtn').style.display = readOnly ? 'none' : '';
     document.getElementById("appointmentModal").style.display = "flex";
 }
 
-function closeModal() { ['modalType','modalCompany','modalVehicle','modalVehicleTransegovia','modalCoordinator','modalStatus','modalPdfFile'].forEach(id => { const el = document.getElementById(id); if (el) el.disabled = false; }); const coordRow = document.getElementById('coordinatorRow'); if (coordRow) coordRow.style.display = ''; const outcomeSection = document.getElementById('reviewOutcomeSection'); if (outcomeSection) outcomeSection.style.display = 'none'; const pdfCurrent = document.getElementById('modalPdfCurrent'); if (pdfCurrent) pdfCurrent.innerText = ''; const pdfDownload = document.getElementById('modalPdfDownload'); if (pdfDownload) pdfDownload.innerHTML = ''; const deleteBtn = document.getElementById('modalDeleteBtn'); if (deleteBtn) deleteBtn.style.display = 'none'; document.getElementById('modalConfirmBtn').style.display = ''; document.getElementById("appointmentModal").style.display = "none"; editingAppId = null; }
+function closeModal() { ['modalType','modalCompany','modalVehicle','modalVehicleTransegovia','modalCoordinator','modalStatus','modalObservations','modalPdfFile'].forEach(id => { const el = document.getElementById(id); if (el) el.disabled = false; }); const coordRow = document.getElementById('coordinatorRow'); if (coordRow) coordRow.style.display = ''; const outcomeSection = document.getElementById('reviewOutcomeSection'); if (outcomeSection) outcomeSection.style.display = 'none'; const pdfCurrent = document.getElementById('modalPdfCurrent'); if (pdfCurrent) pdfCurrent.innerText = ''; const pdfDownload = document.getElementById('modalPdfDownload'); if (pdfDownload) pdfDownload.innerHTML = ''; const deleteBtn = document.getElementById('modalDeleteBtn'); if (deleteBtn) deleteBtn.style.display = 'none'; document.getElementById('modalConfirmBtn').style.display = ''; document.getElementById("appointmentModal").style.display = "none"; editingAppId = null; }
 
 async function confirmModal() {
     const type = document.getElementById("modalType").value;
@@ -563,6 +568,7 @@ async function confirmModal() {
     const vehicle = getModalVehicleValue();
     // Si el tercero no asigna coordinador, queda como "Por asignar"
     const coordinator = (document.getElementById("modalCoordinator")?.value || "").trim();
+    const observations = (document.getElementById("modalObservations")?.value || "").trim();
     const status = (document.getElementById("modalStatus")?.value || "").trim();
     const pdfFile = document.getElementById("modalPdfFile")?.files?.[0] || null;
     const managerMode = canManageRevisions();
@@ -592,7 +598,7 @@ async function confirmModal() {
         return;
     }
     try {
-        const result = await addOrUpdateAppointment({ id: editingAppId, revisionType: type, company, vehicle, coordinator, date, time, status });
+        const result = await addOrUpdateAppointment({ id: editingAppId, revisionType: type, company, vehicle, coordinator, observations, date, time, status });
         if (!result.success) {
             showTemporaryMessage(result.message, "error");
             return;
