@@ -260,12 +260,11 @@ th { background: #f8fafc; font-weight: 600; color: #1e3a5f; }
     border-radius: 6px;
     text-decoration: none;
     font-weight: 500;
-    color: #d92d20;
-    background: #fff1f0;
-    border: 1px solid #f5c2be;
+    color: #1f5e41;
+    background: #2b6e4e20;
     transition: all 0.2s ease;
 }
-.download-link:hover { background: #ffe2df; border-color: #e78b83; transform: scale(1.08); }
+.download-link:hover { background: #2b6e4e40; transform: scale(1.1); }
 .pdf-icon { width: 20px; height: 20px; }
 .upload-widget { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
 .btn-small { padding: 5px 12px; font-size: 0.7rem; }
