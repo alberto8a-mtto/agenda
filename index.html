@@ -17,14 +17,6 @@
             <span id="userStatusText">No autenticado</span>
         </div>
         <div class="user-controls">
-            <div class="theme-switcher-inline">
-                <label for="themeSelectMain">Tema</label>
-                <select id="themeSelectMain" data-theme-select>
-                    <option value="system">Sistema</option>
-                    <option value="light">Claro</option>
-                    <option value="dark">Oscuro</option>
-                </select>
-            </div>
             <button id="logoutBtn" style="display: none;">Cerrar sesión</button>
         </div>
     </div>
@@ -79,10 +71,10 @@
         <div class="table-wrapper">
             <table id="appointmentsTable">
                 <thead>
-                    <tr><th>Tipo</th><th>Empresa</th><th>Vehículo</th><th>Coordinador</th><th>Fecha</th><th>Hora</th><th>Informe PDF</th><th>Resultado</th><th id="adminActionsHeader" style="display: none;">Acciones</th>
+                    <tr><th>Tipo</th><th>Empresa</th><th>Vehículo</th><th>Coordinador</th><th>Fecha</th><th>Hora</th><th>Informe PDF</th><th>Resultado</th><th id="adminActionsHeader" style="display: none;">Acciones</th></tr>
                 </thead>
-                                <tbody id="appointmentsTbody"><tr><td colspan="9">Cargando citas...</td></tr></tbody>
-              </table>
+                <tbody id="appointmentsTbody"><tr><td colspan="9">Cargando citas...</td></tr></tbody>
+            </table>
         </div>
     </div>
     <footer>Sistema de control de revisiones bimestrales</footer>
@@ -131,6 +123,5 @@
 </div>
 
 <script src="script.js"></script>
-<script src="theme.js"></script>
 </body>
 </html>
