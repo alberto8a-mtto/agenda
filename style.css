@@ -60,6 +60,27 @@ body {
     align-items: center;
     flex-wrap: wrap;
 }
+.theme-switcher-inline {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: #f1f5f9;
+    border: 1px solid #cbd5e1;
+    border-radius: 40px;
+    padding: 6px 10px;
+}
+.theme-switcher-inline label {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #334155;
+}
+.theme-switcher-inline select {
+    border: 1px solid #cbd5e1;
+    border-radius: 22px;
+    padding: 4px 8px;
+    background: white;
+    font-size: 0.78rem;
+}
 .user-controls input {
     border: 1px solid #cbd5e1;
     border-radius: 40px;
@@ -421,6 +442,21 @@ footer { text-align: center; font-size: 0.75rem; color: #5b6e8c; margin-top: 30p
 .auth-card button:hover {
     box-shadow: 0 10px 20px rgba(30, 74, 118, 0.3);
 }
+.theme-switcher {
+    max-width: 260px;
+    margin: 0 auto 8px;
+}
+.theme-switcher.auth-theme-switcher label {
+    margin-top: 0;
+}
+.theme-switcher select {
+    display: block;
+    width: 100%;
+    border: 1px solid #b8c8d8;
+    border-radius: 999px;
+    padding: 10px 16px;
+    background: #f9fcff;
+}
 @media (max-width: 560px) {
     .auth-hero {
         height: 200px;
@@ -465,7 +501,8 @@ footer { text-align: center; font-size: 0.75rem; color: #5b6e8c; margin-top: 30p
 [data-theme="dark"] .week-nav span,
 [data-theme="dark"] .user-status,
 [data-theme="dark"] .calendar-time-label,
-[data-theme="dark"] footer {
+[data-theme="dark"] footer,
+[data-theme="dark"] .theme-switcher-inline label {
     color: #cbd5e1;
 }
 [data-theme="dark"] .auth-card input,
@@ -473,7 +510,9 @@ footer { text-align: center; font-size: 0.75rem; color: #5b6e8c; margin-top: 30p
 [data-theme="dark"] .modal-content input,
 [data-theme="dark"] .modal-content select,
 [data-theme="dark"] .user-management-grid input,
-[data-theme="dark"] .user-management-grid select {
+[data-theme="dark"] .user-management-grid select,
+[data-theme="dark"] .theme-switcher-inline,
+[data-theme="dark"] .theme-switcher-inline select {
     background: #0f172a;
     color: #e2e8f0;
     border-color: #334155;
@@ -556,7 +595,8 @@ footer { text-align: center; font-size: 0.75rem; color: #5b6e8c; margin-top: 30p
     :root[data-theme="system"] .week-nav span,
     :root[data-theme="system"] .user-status,
     :root[data-theme="system"] .calendar-time-label,
-    :root[data-theme="system"] footer {
+    :root[data-theme="system"] footer,
+    :root[data-theme="system"] .theme-switcher-inline label {
         color: #cbd5e1;
     }
     :root[data-theme="system"] .auth-card input,
@@ -564,7 +604,9 @@ footer { text-align: center; font-size: 0.75rem; color: #5b6e8c; margin-top: 30p
     :root[data-theme="system"] .modal-content input,
     :root[data-theme="system"] .modal-content select,
     :root[data-theme="system"] .user-management-grid input,
-    :root[data-theme="system"] .user-management-grid select {
+    :root[data-theme="system"] .user-management-grid select,
+    :root[data-theme="system"] .theme-switcher-inline,
+    :root[data-theme="system"] .theme-switcher-inline select {
         background: #0f172a;
         color: #e2e8f0;
         border-color: #334155;
