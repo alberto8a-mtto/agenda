@@ -306,6 +306,26 @@ footer { text-align: center; font-size: 0.75rem; color: #5b6e8c; margin-top: 30p
     border-radius: 12px;
     padding: 10px;
 }
+.company-management-row {
+    display: grid;
+    grid-template-columns: minmax(220px, 320px) auto 1fr;
+    gap: 10px;
+    align-items: center;
+    margin-top: 14px;
+}
+.company-management-row input {
+    width: 100%;
+    border: 1px solid #cbd5e1;
+    border-radius: 12px;
+    padding: 10px;
+}
+.company-management-row button {
+    justify-self: start;
+}
+#companyManagementHint {
+    font-size: 0.8rem;
+    color: #5b6e8c;
+}
 .btn-reset-password {
     margin-left: 6px;
 }
@@ -427,5 +447,14 @@ footer { text-align: center; font-size: 0.75rem; color: #5b6e8c; margin-top: 30p
     }
     .auth-form-content {
         padding: 20px;
+    }
+}
+@media (max-width: 780px) {
+    .company-management-row {
+        grid-template-columns: 1fr;
+        align-items: stretch;
+    }
+    .company-management-row button {
+        justify-self: stretch;
     }
 }

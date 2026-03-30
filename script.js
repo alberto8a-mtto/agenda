@@ -1,7 +1,8 @@
 // ---------- CONFIGURACIÓN DE ACCESO ----------
 const SESSION_STORAGE_KEY = "revisiones_active_session_v1";
 const USER_ROLES = ["EMPRESA", "COORDINADOR", "ADMIN"];
-const COMPANY_OPTIONS = ["RAPIDO OCHOA", "ESPECIALES", "TRANSEGOVIA", "ARAUCA", "COLGAS", "TVS", "TRANSORIENTE"];
+const DEFAULT_COMPANY_OPTIONS = ["RAPIDO OCHOA", "ESPECIALES", "TRANSEGOVIA", "ARAUCA", "COLGAS", "TVS", "TRANSORIENTE"];
+let companyOptions = [...DEFAULT_COMPANY_OPTIONS];
 
 // ---------- ESTADO DE AUTENTICACIÓN ----------
 let authenticatedUser = null;
@@ -121,6 +122,26 @@ function getUserById(userId) {
     return authConfig.users.find(u => u.id === userId) || null;
 }
 
+function normalizeCompanyName(value) {
+    return String(value || "").trim().toUpperCase();
+}
+
+function normalizeCompanyList(items) {
+    if (!Array.isArray(items)) return [...DEFAULT_COMPANY_OPTIONS];
+    const unique = [];
+    for (const item of items) {
+        const normalized = normalizeCompanyName(item);
+        if (!normalized) continue;
+        if (unique.includes(normalized)) continue;
+        unique.push(normalized);
+    }
+    return unique.length ? unique : [...DEFAULT_COMPANY_OPTIONS];
+}
+
+function getDefaultCompany() {
+    return companyOptions.length ? companyOptions[0] : DEFAULT_COMPANY_OPTIONS[0];
+}
+
 function restoreSessionUser() {
     const rawSession = sessionStorage.getItem(SESSION_STORAGE_KEY);
     if (!rawSession) return false;
@@ -147,7 +168,8 @@ function normalizeLoadedUsers(users) {
         const fullName = typeof rawUser.fullName === "string" && rawUser.fullName.trim() ? rawUser.fullName.trim() : (typeof rawUser.username === "string" ? rawUser.username.trim() : "");
         const username = typeof rawUser.username === "string" ? rawUser.username.trim() : "";
         const role = USER_ROLES.includes(rawUser.role) ? rawUser.role : "EMPRESA";
-        const company = typeof rawUser.company === "string" && rawUser.company.trim() ? rawUser.company.trim() : (role === "EMPRESA" ? COMPANY_OPTIONS[0] : "TODAS");
+        const companyFromUser = typeof rawUser.company === "string" ? normalizeCompanyName(rawUser.company) : "";
+        const company = companyFromUser || (role === "EMPRESA" ? getDefaultCompany() : "TODAS");
         const blocked = rawUser.blocked === true;
         const password = typeof rawUser.password === "string" ? rawUser.password.trim() : "";
         if (!fullName || !username) continue;
@@ -162,12 +184,17 @@ async function loadAuthConfig() {
     authConfig = { users: normalizeLoadedUsers(users) };
 }
 
+async function loadCompanyOptionsFromApi() {
+    const companies = await apiRequest("/api/companies");
+    companyOptions = normalizeCompanyList(companies);
+}
+
 function normalizeAppointments(items) {
     if (!Array.isArray(items)) return [];
     return items.map((app) => ({
         ...app,
         revisionType: app.revisionType || "REVISION",
-        company: app.company || "RAPIDO OCHOA",
+        company: normalizeCompanyName(app.company) || getDefaultCompany(),
         vehicle: app.vehicle || "SIN DATOS",
         coordinator: app.coordinator || "",
         status: app.status || "Pendiente",
@@ -481,7 +508,7 @@ function openModal(appId, date, time) {
         editingAppId = appId;
         document.getElementById("modalTitle").innerText = managerMode ? "Editar revisión" : "Detalle de revisión";
         document.getElementById("modalType").value = app.revisionType;
-        document.getElementById("modalCompany").value = app.company;
+        populateAppointmentCompanyOptions(app.company);
         document.getElementById("modalVehicle").value = app.vehicle;
         updateVehicleFieldVisibility(app.vehicle);
         populateCoordinatorOptions(app.coordinator || "");
@@ -506,7 +533,7 @@ function openModal(appId, date, time) {
         editingAppId = null;
         document.getElementById("modalTitle").innerText = "Nueva revisión";
         document.getElementById("modalType").value = "REVISION";
-        document.getElementById("modalCompany").value = "RAPIDO OCHOA";
+        populateAppointmentCompanyOptions(getDefaultCompany());
         document.getElementById("modalVehicle").value = "";
         updateVehicleFieldVisibility("");
         populateCoordinatorOptions("");
@@ -642,7 +669,14 @@ function showTemporaryMessage(msg, type) { const div = document.getElementById("
 function populateUserCompanyOptions() {
     const companySelect = document.getElementById("newUserCompany");
     if (!companySelect) return;
-    companySelect.innerHTML = COMPANY_OPTIONS.map(company => `<option value="${company}">${company}</option>`).join("");
+    companySelect.innerHTML = companyOptions.map(company => `<option value="${company}">${company}</option>`).join("");
+}
+
+function populateAppointmentCompanyOptions(selectedCompany = "") {
+    const companySelect = document.getElementById("modalCompany");
+    if (!companySelect) return;
+    companySelect.innerHTML = companyOptions.map(company => `<option value="${company}">${company}</option>`).join("");
+    companySelect.value = normalizeCompanyName(selectedCompany) || getDefaultCompany();
 }
 
 function updateNewUserCompanyState() {
@@ -666,7 +700,7 @@ function renderUsersTable() {
 
     let html = "";
     for (const user of authConfig.users) {
-        const companyOptions = ["TODAS", ...COMPANY_OPTIONS]
+        const userCompanyOptions = ["TODAS", ...companyOptions]
             .map(company => `<option value="${company}" ${company === user.company ? "selected" : ""}>${company}</option>`)
             .join("");
         const companyDisabled = user.role === "EMPRESA" ? "" : "disabled";
@@ -678,7 +712,7 @@ function renderUsersTable() {
                     <td>${escapeHtml(user.username)} ${blockBadge}</td>
                     <td>${escapeHtml(user.role)}</td>
                     <td>
-                        <select class="user-company-select" data-user-id="${user.id}" ${companyDisabled}>${companyOptions}</select>
+                        <select class="user-company-select" data-user-id="${user.id}" ${companyDisabled}>${userCompanyOptions}</select>
                     </td>
                     <td>
                         <button class="btn-small secondary btn-assign-company" data-user-id="${user.id}">Asignar empresa</button>
@@ -718,7 +752,7 @@ async function createUser() {
     const username = (usernameInput?.value || "").trim();
     const password = (passwordInput?.value || "").trim();
     const role = roleInput?.value || "EMPRESA";
-    const company = role === "EMPRESA" ? (companyInput?.value || COMPANY_OPTIONS[0]) : "TODAS";
+    const company = role === "EMPRESA" ? normalizeCompanyName(companyInput?.value || getDefaultCompany()) : "TODAS";
 
     if (!fullName || !username || !password) {
         showTemporaryMessage("Ingrese nombre, usuario y clave para crear el registro.", "error");
@@ -746,6 +780,40 @@ async function createUser() {
         showTemporaryMessage("Usuario creado correctamente.", "success");
     } catch (error) {
         showTemporaryMessage(error.message || "No fue posible crear el usuario.", "error");
+    }
+}
+
+async function createCompany() {
+    if (!canManageUsers()) {
+        showTemporaryMessage("No tiene permisos para crear empresas.", "error");
+        return;
+    }
+    const companyInput = document.getElementById("newCompanyName");
+    const companyName = normalizeCompanyName(companyInput?.value || "");
+
+    if (!companyName) {
+        showTemporaryMessage("Ingrese el nombre de la empresa.", "error");
+        return;
+    }
+    if (companyOptions.includes(companyName)) {
+        showTemporaryMessage("Esa empresa ya existe.", "error");
+        return;
+    }
+
+    try {
+        const created = await apiRequest("/api/companies", {
+            method: "POST",
+            body: { name: companyName }
+        });
+        companyOptions = normalizeCompanyList([...companyOptions, created.name]);
+        if (companyInput) companyInput.value = "";
+        populateUserCompanyOptions();
+        populateAppointmentCompanyOptions(document.getElementById("modalCompany")?.value || created.name);
+        updateNewUserCompanyState();
+        renderUsersTable();
+        showTemporaryMessage(`Empresa ${created.name} creada correctamente.`, "success");
+    } catch (error) {
+        showTemporaryMessage(error.message || "No fue posible crear la empresa.", "error");
     }
 }
 
@@ -894,6 +962,7 @@ function logoutUser() {
 function bindGlobalEvents() {
     document.getElementById("logoutBtn").addEventListener("click", logoutUser);
     document.getElementById("createUserBtn").addEventListener("click", createUser);
+    document.getElementById("createCompanyBtn").addEventListener("click", createCompany);
     document.getElementById("newUserRole").addEventListener("change", updateNewUserCompanyState);
     document.getElementById("usersTbody").addEventListener("click", handleUsersTableClick);
     document.getElementById("appointmentsTbody").addEventListener("click", handleAppointmentsTableClick);
@@ -908,6 +977,7 @@ function bindGlobalEvents() {
 
 async function init() {
     try {
+        await loadCompanyOptionsFromApi();
         await loadAuthConfig();
         if (!restoreSessionUser()) {
             window.location.href = "login.html";
@@ -917,6 +987,7 @@ async function init() {
         currentWeekStart = getMonday(new Date());
         populateTransegoviaVehicleOptions();
         populateUserCompanyOptions();
+        populateAppointmentCompanyOptions();
         bindGlobalEvents();
         updateVehicleFieldVisibility("");
         updateUIForAuth(true);
