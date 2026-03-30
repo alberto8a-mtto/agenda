@@ -257,14 +257,15 @@ th { background: #f8fafc; font-weight: 600; color: #1e3a5f; }
 .btn-small { padding: 5px 12px; font-size: 0.7rem; }
 .table-wrapper { overflow-x: auto; border-radius: 20px; }
 .card-consolidated .table-wrapper {
-    max-width: 1140px;
+    max-width: 100%;
     margin: 0 auto;
     border: 1px solid #e2e8f0;
     background: #ffffff;
 }
 .card-consolidated table {
     width: 100%;
-    table-layout: fixed;
+    min-width: 1520px;
+    table-layout: auto;
     margin: 0 auto;
 }
 .card-consolidated th,
@@ -273,6 +274,38 @@ th { background: #f8fafc; font-weight: 600; color: #1e3a5f; }
     vertical-align: middle;
     white-space: normal;
     word-break: break-word;
+}
+.card-consolidated th {
+    white-space: nowrap;
+}
+.doc-cell {
+    min-width: 180px;
+}
+.doc-cell-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+}
+.doc-cell-content .download-link,
+.doc-cell-content .badge {
+    white-space: nowrap;
+}
+.doc-upload-input {
+    width: 170px;
+    max-width: 170px;
+    font-size: 0.68rem;
+}
+.doc-upload-input::file-selector-button {
+    border: 1px solid #cbd5e1;
+    background: #f8fafc;
+    border-radius: 14px;
+    padding: 3px 8px;
+    margin-right: 8px;
+    cursor: pointer;
+}
+.btn-upload-document {
+    padding: 6px 14px;
 }
 footer { text-align: center; font-size: 0.75rem; color: #5b6e8c; margin-top: 30px; }
 .status-select { padding: 6px 10px; border-radius: 30px; font-size: 0.75rem; border: 1px solid #cbd5e1; background: white; }
