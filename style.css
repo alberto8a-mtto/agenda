@@ -252,7 +252,21 @@ table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
 th, td { padding: 14px 10px; text-align: left; border-bottom: 1px solid #e2edf2; }
 th { background: #f8fafc; font-weight: 600; color: #1e3a5f; }
 .badge { background: #e6f0fa; padding: 4px 12px; border-radius: 40px; font-size: 0.7rem; font-weight: 500; }
-.download-link { background: #2b6e4e20; padding: 6px 12px; border-radius: 40px; text-decoration: none; font-weight: 500; font-size: 0.75rem; display: inline-block; color: #1f5e41; }
+.download-link { 
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    text-decoration: none;
+    font-weight: 500;
+    color: #1f5e41;
+    background: #2b6e4e20;
+    transition: all 0.2s ease;
+}
+.download-link:hover { background: #2b6e4e40; transform: scale(1.1); }
+.pdf-icon { width: 20px; height: 20px; }
 .upload-widget { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
 .btn-small { padding: 5px 12px; font-size: 0.7rem; }
 .table-wrapper { overflow-x: auto; border-radius: 20px; }
