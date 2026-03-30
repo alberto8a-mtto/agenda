@@ -110,6 +110,14 @@ function canManageUsers() {
     return isAuthenticated && authenticatedUser && authenticatedUser.role === "ADMIN";
 }
 
+function canUploadCoordinatorDocuments() {
+    return isAuthenticated && authenticatedUser && (authenticatedUser.role === "COORDINADOR" || authenticatedUser.role === "ADMIN");
+}
+
+function canUploadOrderDocument() {
+    return isAuthenticated && authenticatedUser && (authenticatedUser.role === "EMPRESA" || authenticatedUser.role === "ADMIN");
+}
+
 function setActiveSession(userId) {
     sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify({ userId }));
 }
@@ -202,6 +210,15 @@ function normalizeAppointments(items) {
         pdfBase64: app.pdfBase64 || null,
         pdfName: app.pdfName || null,
         pdfUrl: app.pdfUrl || null,
+        remisionBase64: app.remisionBase64 || null,
+        remisionName: app.remisionName || null,
+        remisionUrl: app.remisionUrl || null,
+        ordenPedidoBase64: app.ordenPedidoBase64 || null,
+        ordenPedidoName: app.ordenPedidoName || null,
+        ordenPedidoUrl: app.ordenPedidoUrl || null,
+        facturaBase64: app.facturaBase64 || null,
+        facturaName: app.facturaName || null,
+        facturaUrl: app.facturaUrl || null,
         storagePath: app.storagePath || null
     }));
 }
@@ -256,6 +273,34 @@ function getAppointmentPdfUrl(app) {
     return null;
 }
 
+function getDocumentConfig(docType) {
+    switch (docType) {
+        case "remision":
+            return { urlField: "remisionUrl", nameField: "remisionName", base64Field: "remisionBase64", defaultFileName: "remision.pdf", label: "Remisión" };
+        case "ordenPedido":
+            return { urlField: "ordenPedidoUrl", nameField: "ordenPedidoName", base64Field: "ordenPedidoBase64", defaultFileName: "orden_pedido.pdf", label: "Orden de Pedido" };
+        case "factura":
+            return { urlField: "facturaUrl", nameField: "facturaName", base64Field: "facturaBase64", defaultFileName: "factura.pdf", label: "Factura" };
+        default:
+            return null;
+    }
+}
+
+function getAppointmentDocumentUrl(app, docType) {
+    const config = getDocumentConfig(docType);
+    if (!app || !config) return null;
+    if (app[config.urlField]) return app[config.urlField];
+    const base64 = app[config.base64Field];
+    if (base64 && base64.length > 50) return base64;
+    return null;
+}
+
+function getAppointmentDocumentName(app, docType) {
+    const config = getDocumentConfig(docType);
+    if (!app || !config) return null;
+    return app[config.nameField] || config.defaultFileName;
+}
+
 function createPdfDownloadLink(url, fileName, label = "Descargar PDF") {
     if (!url) return '<span class="badge">No cargado</span>';
     const safeUrl = escapeHtml(url);
@@ -306,6 +351,60 @@ function readPdfAsDataUrl(file) {
         reader.onerror = () => reject(new Error("No se pudo leer el archivo PDF."));
         reader.readAsDataURL(file);
     });
+}
+
+async function updateAppointmentDocument(appId, docType, filePayload) {
+    const config = getDocumentConfig(docType);
+    if (!config) throw new Error("Tipo de documento no soportado.");
+    const idx = appointments.findIndex(a => a.id === appId);
+    if (idx === -1) throw new Error("Cita no encontrada.");
+
+    const patchPayload = {
+        [config.nameField]: filePayload.name,
+        [config.urlField]: null,
+        [config.base64Field]: filePayload.base64
+    };
+
+    await apiRequest(`/api/appointments/${appId}`, {
+        method: "PATCH",
+        body: patchPayload
+    });
+
+    appointments[idx] = { ...appointments[idx], ...patchPayload };
+}
+
+async function uploadAppointmentDocument(appId, docType, file) {
+    const config = getDocumentConfig(docType);
+    if (!config) throw new Error("Tipo de documento no soportado.");
+    if (!file) throw new Error(`Seleccione un PDF para ${config.label}.`);
+    if (file.type !== "application/pdf") throw new Error(`Solo se permite ${config.label} en PDF.`);
+    if (file.size > MAX_PDF_SIZE_BYTES) throw new Error(`El PDF de ${config.label} supera el límite de 600 KB.`);
+
+    const pdfBase64 = await readPdfAsDataUrl(file);
+    await updateAppointmentDocument(appId, docType, {
+        name: file.name,
+        base64: pdfBase64
+    });
+}
+
+function buildDocumentCell(app, docType, canUpload) {
+    const config = getDocumentConfig(docType);
+    if (!config) return `<span class="badge">No disponible</span>`;
+    const docUrl = getAppointmentDocumentUrl(app, docType);
+    const docName = getAppointmentDocumentName(app, docType);
+    const downloadHtml = docUrl
+        ? createPdfDownloadLink(docUrl, docName, `Descargar ${config.label}`)
+        : `<span class="badge">No cargado</span>`;
+
+    if (!canUpload) {
+        return downloadHtml;
+    }
+
+    return `${downloadHtml}
+            <div class="upload-widget" style="margin-top:6px; justify-content:center;">
+                <input type="file" class="doc-upload-input" data-doc-type="${docType}" data-id="${app.id}" accept="application/pdf" style="max-width: 170px; font-size: 0.68rem;">
+                <button class="btn-small btn-upload-document" data-doc-type="${docType}" data-id="${app.id}">Subir</button>
+            </div>`;
 }
 
 async function uploadPdfFile(appId, file) {
@@ -628,12 +727,14 @@ function renderConsolidatedTable() {
     const tbody = document.getElementById("appointmentsTbody");
     const adminActionsHeader = document.getElementById("adminActionsHeader");
     const canManageAppointments = canManageRevisions();
+    const canUploadCoordinatorDocs = canUploadCoordinatorDocuments();
+    const canUploadOrderDocs = canUploadOrderDocument();
     const isCompanyUser = authenticatedUser && authenticatedUser.role === "EMPRESA" && authenticatedUser.company && authenticatedUser.company !== "TODAS";
     const visibleAppointments = isCompanyUser ? appointments.filter(app => app.company === authenticatedUser.company) : appointments;
     if (!tbody) return;
     if (adminActionsHeader) adminActionsHeader.style.display = canManageAppointments ? "table-cell" : "none";
     if (!visibleAppointments.length) {
-        tbody.innerHTML = `<tr><td colspan="${canManageAppointments ? 9 : 8}" style="text-align:center;">No hay revisiones agendadas.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="${canManageAppointments ? 12 : 11}" style="text-align:center;">No hay revisiones agendadas.</td></tr>`;
         return;
     }
     const sorted = [...visibleAppointments].sort((a,b) => `${a.date}T${a.time}`.localeCompare(`${b.date}T${b.time}`));
@@ -641,6 +742,9 @@ function renderConsolidatedTable() {
     for (const app of sorted) {
         const pdfUrl = getAppointmentPdfUrl(app);
         const pdfInfo = pdfUrl ? createPdfDownloadLink(pdfUrl, app.pdfName || 'informe_revision.pdf') : `<span class="badge">No cargado</span>`;
+        const remisionCell = buildDocumentCell(app, "remision", canUploadCoordinatorDocs);
+        const ordenPedidoCell = buildDocumentCell(app, "ordenPedido", canUploadOrderDocs);
+        const facturaCell = buildDocumentCell(app, "factura", canUploadCoordinatorDocs);
         let statusCell = `<span class="status-badge ${getStatusClass(app.status)}">${app.status||"Pendiente"}</span>`;
         html += `<tr data-id="${app.id}">
                      <td>${escapeHtml(app.revisionType)}</td>
@@ -650,6 +754,9 @@ function renderConsolidatedTable() {
                      <td>${app.date}</td>
                      <td>${app.time}</td>
                      <td>${pdfInfo}</td>
+                     <td>${remisionCell}</td>
+                     <td>${ordenPedidoCell}</td>
+                     <td>${facturaCell}</td>
                      <td>${statusCell}</td>`;
         if (canManageAppointments) {
             html += `<td><button class="btn-small danger btn-delete-appointment" data-id="${app.id}">Eliminar</button></td>`;
@@ -661,7 +768,37 @@ function renderConsolidatedTable() {
 }
 
 function getStatusClass(status) { switch(status) { case "No se presenta": return "status-no-show"; case "habilitado": return "status-habilitado"; case "inhabilitado": return "status-inhabilitado"; case "condicionado": return "status-condicionado"; default: return "status-pendiente"; } }
-async function handleUploadClick(e) { const btn = e.currentTarget; const appId = btn.getAttribute('data-id'); const row = btn.closest('tr'); const fileInput = row.querySelector('.pdf-upload-input'); if (!fileInput || !fileInput.files[0]) { showTemporaryMessage("Seleccione un PDF.", "error"); return; } try { await uploadPdfFile(appId, fileInput.files[0]); showTemporaryMessage("PDF cargado.", "success"); renderConsolidatedTable(); renderCalendar(); } catch (error) { showTemporaryMessage(error.message || "Error al cargar PDF.", "error"); } }
+async function handleDocumentUploadClick(buttonElement) {
+    const appId = buttonElement.getAttribute("data-id");
+    const docType = buttonElement.getAttribute("data-doc-type");
+    const row = buttonElement.closest("tr");
+    if (!appId || !docType || !row) return;
+
+    const fileInput = row.querySelector(`.doc-upload-input[data-id="${appId}"][data-doc-type="${docType}"]`);
+    if (!fileInput || !fileInput.files || !fileInput.files[0]) {
+        showTemporaryMessage("Seleccione un PDF para cargar.", "error");
+        return;
+    }
+
+    if (docType === "ordenPedido" && !canUploadOrderDocument()) {
+        showTemporaryMessage("No tiene permisos para cargar orden de pedido.", "error");
+        return;
+    }
+    if ((docType === "remision" || docType === "factura") && !canUploadCoordinatorDocuments()) {
+        showTemporaryMessage("No tiene permisos para cargar este documento.", "error");
+        return;
+    }
+
+    try {
+        await uploadAppointmentDocument(appId, docType, fileInput.files[0]);
+        const label = getDocumentConfig(docType)?.label || "Documento";
+        showTemporaryMessage(`${label} cargada correctamente.`, "success");
+        renderConsolidatedTable();
+        renderCalendar();
+    } catch (error) {
+        showTemporaryMessage(error.message || "No fue posible cargar el documento.", "error");
+    }
+}
 async function handleDeleteClick(e) { const id = e.currentTarget.getAttribute('data-id'); const app = appointments.find(a => a.id === id); if (!app) return; if (confirm(`Eliminar ${app.vehicle} - ${app.company} el ${app.date} a las ${app.time}?`)) { try { await deleteAppointment(id); renderCalendar(); renderConsolidatedTable(); showTemporaryMessage("Cita eliminada.", "success"); } catch (error) { showTemporaryMessage(error.message || "No fue posible eliminar la cita.", "error"); } } }
 async function handleModalDeleteClick() { if (!editingAppId) return; const app = appointments.find(a => a.id === editingAppId); if (!app) { showTemporaryMessage("Cita no encontrada.", "error"); return; } if (!confirm(`Eliminar ${app.vehicle} - ${app.company} el ${app.date} a las ${app.time}?`)) return; try { await deleteAppointment(editingAppId); closeModal(); renderCalendar(); renderConsolidatedTable(); showTemporaryMessage("Cita eliminada.", "success"); } catch (error) { showTemporaryMessage(error.message || "No fue posible eliminar la cita.", "error"); } }
 function escapeHtml(str) { if (!str) return ''; return str.replace(/[&<>]/g, m => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;' }[m])); }
@@ -937,6 +1074,10 @@ function handleUsersTableClick(event) {
 function handleAppointmentsTableClick(event) {
     const target = event.target;
     if (!(target instanceof HTMLElement)) return;
+    if (target.classList.contains("btn-upload-document")) {
+        handleDocumentUploadClick(target);
+        return;
+    }
     const appointmentId = target.getAttribute("data-id");
     if (!appointmentId) return;
     if (target.classList.contains("btn-delete-appointment")) handleDeleteClick(event);
