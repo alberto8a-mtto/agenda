@@ -76,6 +76,40 @@ function sanitizeFileName(fileName) {
   return path.basename(fileName || 'informe.pdf').replace(/[^a-zA-Z0-9._-]/g, '_');
 }
 
+function parseBase64DataUrl(dataUrl) {
+  const match = String(dataUrl || '').match(/^data:([^;]+);base64,(.+)$/);
+  if (!match) {
+    throw new Error('El archivo enviado no tiene un formato base64 válido.');
+  }
+
+  return {
+    contentType: match[1],
+    buffer: Buffer.from(match[2], 'base64')
+  };
+}
+
+async function uploadPdfToStorage({ appointmentId, fileName, contentType, buffer }) {
+  const bucket = getStorageBucket();
+  const safeFileName = sanitizeFileName(fileName);
+  const storagePath = `appointment-pdfs/${appointmentId}/${Date.now()}-${safeFileName}`;
+  const file = bucket.file(storagePath);
+
+  await file.save(buffer, {
+    resumable: false,
+    metadata: {
+      contentType: contentType || 'application/pdf'
+    }
+  });
+
+  const [downloadUrl] = await file.getSignedUrl({
+    version: 'v4',
+    action: 'read',
+    expires: new Date('2100-01-01T00:00:00.000Z')
+  });
+
+  return { downloadUrl, storagePath };
+}
+
 function normalizeCompanyName(value) {
   return String(value || '').trim().toUpperCase();
 }
@@ -415,6 +449,29 @@ app.post('/api/uploads/pdfs/sign', async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Error al preparar carga de PDF' });
+  }
+});
+
+app.post('/api/uploads/pdfs', async (req, res) => {
+  try {
+    const { appointmentId, fileName, contentType, pdfBase64 } = req.body || {};
+
+    if (!appointmentId || !fileName || !pdfBase64) {
+      return res.status(400).json({ error: 'appointmentId, fileName y pdfBase64 son requeridos' });
+    }
+
+    const parsedFile = parseBase64DataUrl(pdfBase64);
+    const uploadedFile = await uploadPdfToStorage({
+      appointmentId,
+      fileName,
+      contentType: contentType || parsedFile.contentType,
+      buffer: parsedFile.buffer
+    });
+
+    res.json(uploadedFile);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: error.message || 'Error al cargar PDF' });
   }
 });
 
