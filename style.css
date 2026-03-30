@@ -261,12 +261,11 @@ th { background: #f8fafc; font-weight: 600; color: #1e3a5f; }
     margin: 0 auto;
     border: 1px solid #e2e8f0;
     background: #ffffff;
-    overflow-x: hidden;
 }
 .card-consolidated table {
     width: 100%;
-    min-width: 100%;
-    table-layout: fixed;
+    min-width: 1520px;
+    table-layout: auto;
     margin: 0 auto;
 }
 .card-consolidated th,
@@ -274,58 +273,40 @@ th { background: #f8fafc; font-weight: 600; color: #1e3a5f; }
     text-align: center;
     vertical-align: middle;
     white-space: normal;
-    word-break: normal;
-    overflow-wrap: anywhere;
-    padding: 9px 6px;
-    font-size: 0.76rem;
+    word-break: break-word;
 }
 .card-consolidated th {
     white-space: nowrap;
-    font-size: 0.78rem;
 }
 .doc-cell {
-    min-width: 120px;
+    min-width: 180px;
 }
 .doc-cell-content {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
 }
 .doc-cell-content .download-link,
 .doc-cell-content .badge {
     white-space: nowrap;
 }
 .doc-upload-input {
-    width: 110px;
-    max-width: 110px;
-    font-size: 0.62rem;
+    width: 170px;
+    max-width: 170px;
+    font-size: 0.68rem;
 }
 .doc-upload-input::file-selector-button {
     border: 1px solid #cbd5e1;
     background: #f8fafc;
     border-radius: 14px;
-    padding: 2px 6px;
-    margin-right: 4px;
+    padding: 3px 8px;
+    margin-right: 8px;
     cursor: pointer;
-    font-size: 0.62rem;
 }
 .btn-upload-document {
-    padding: 4px 10px;
-    font-size: 0.65rem;
+    padding: 6px 14px;
 }
-.card-consolidated th:nth-child(1), .card-consolidated td:nth-child(1) { width: 6%; }
-.card-consolidated th:nth-child(2), .card-consolidated td:nth-child(2) { width: 7%; }
-.card-consolidated th:nth-child(3), .card-consolidated td:nth-child(3) { width: 12%; }
-.card-consolidated th:nth-child(4), .card-consolidated td:nth-child(4) { width: 8%; }
-.card-consolidated th:nth-child(5), .card-consolidated td:nth-child(5) { width: 6%; }
-.card-consolidated th:nth-child(6), .card-consolidated td:nth-child(6) { width: 5%; }
-.card-consolidated th:nth-child(7), .card-consolidated td:nth-child(7) { width: 9%; }
-.card-consolidated th:nth-child(8), .card-consolidated td:nth-child(8) { width: 10%; }
-.card-consolidated th:nth-child(9), .card-consolidated td:nth-child(9) { width: 10%; }
-.card-consolidated th:nth-child(10), .card-consolidated td:nth-child(10) { width: 10%; }
-.card-consolidated th:nth-child(11), .card-consolidated td:nth-child(11) { width: 7%; }
-.card-consolidated th:nth-child(12), .card-consolidated td:nth-child(12) { width: 10%; }
 footer { text-align: center; font-size: 0.75rem; color: #5b6e8c; margin-top: 30px; }
 .status-select { padding: 6px 10px; border-radius: 30px; font-size: 0.75rem; border: 1px solid #cbd5e1; background: white; }
 .status-badge { display: inline-block; padding: 4px 12px; border-radius: 40px; font-size: 0.7rem; font-weight: 600; }
