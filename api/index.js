@@ -454,10 +454,24 @@ app.post('/api/appointments', async (req, res) => {
   }
 });
 
+function sanitizePatchPayload(payload) {
+  const clean = {};
+  for (const [key, value] of Object.entries(payload || {})) {
+    if (key === 'id') continue;
+    if (typeof value === 'undefined') continue;
+    clean[key] = value;
+  }
+  return clean;
+}
+
 app.patch('/api/appointments/:id', async (req, res) => {
   try {
     const db = getDb();
-    await db.collection('appointments').doc(req.params.id).update(req.body);
+    const patchPayload = sanitizePatchPayload(req.body);
+    if (!Object.keys(patchPayload).length) {
+      return res.status(400).json({ error: 'No hay campos válidos para actualizar' });
+    }
+    await db.collection('appointments').doc(req.params.id).update(patchPayload);
     res.json({ message: 'Cita actualizada' });
   } catch (error) {
     console.error(error);
