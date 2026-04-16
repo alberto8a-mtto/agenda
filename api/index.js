@@ -119,6 +119,28 @@ async function ensureDefaultCompanies(db) {
   return [...DEFAULT_COMPANIES];
 }
 
+async function getAgendaSettings(db) {
+  const ref = db.collection('settings').doc('agenda');
+  const snap = await ref.get();
+
+  if (!snap.exists) {
+    const defaultSettings = {
+      isLocked: false,
+      updatedAt: new Date(),
+      updatedBy: null
+    };
+    await ref.set(defaultSettings);
+    return defaultSettings;
+  }
+
+  const data = snap.data() || {};
+  return {
+    isLocked: data.isLocked === true,
+    updatedAt: data.updatedAt || null,
+    updatedBy: data.updatedBy || null
+  };
+}
+
 // ==================== AUTENTICACIÓN ====================
 
 app.post('/api/auth/login', async (req, res) => {
@@ -377,6 +399,40 @@ app.patch('/api/users/:id/password', async (req, res) => {
 
 // ==================== CITAS ====================
 
+app.get('/api/settings/agenda', async (req, res) => {
+  try {
+    const db = getDb();
+    const settings = await getAgendaSettings(db);
+    res.json(settings);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error al obtener configuración de agenda' });
+  }
+});
+
+app.patch('/api/settings/agenda', async (req, res) => {
+  try {
+    const db = getDb();
+    const hasIsLocked = Object.prototype.hasOwnProperty.call(req.body || {}, 'isLocked');
+
+    if (!hasIsLocked) {
+      return res.status(400).json({ error: 'El campo isLocked es requerido' });
+    }
+
+    const payload = {
+      isLocked: req.body.isLocked === true,
+      updatedAt: new Date(),
+      updatedBy: req.body.updatedBy ? String(req.body.updatedBy) : null
+    };
+
+    await db.collection('settings').doc('agenda').set(payload, { merge: true });
+    res.json(payload);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error al actualizar configuración de agenda' });
+  }
+});
+
 app.post('/api/uploads/pdfs/sign', async (req, res) => {
   try {
     const { appointmentId, fileName, contentType } = req.body;
@@ -434,6 +490,10 @@ app.get('/api/appointments', async (req, res) => {
 app.post('/api/appointments', async (req, res) => {
   try {
     const db = getDb();
+    const agendaSettings = await getAgendaSettings(db);
+    if (agendaSettings.isLocked) {
+      return res.status(423).json({ error: 'La agenda está bloqueada temporalmente. No se pueden crear nuevas citas.' });
+    }
     const appointment = req.body;
     const docRef = await db.collection('appointments').add(appointment);
 

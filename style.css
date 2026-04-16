@@ -60,6 +60,26 @@ body {
     align-items: center;
     flex-wrap: wrap;
 }
+.agenda-lock-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.agenda-lock-badge {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    padding: 6px 12px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    background: #e0f2e9;
+    color: #166534;
+}
+.agenda-lock-badge.locked {
+    background: #fee2e2;
+    color: #991b1b;
+}
 .user-controls input {
     border: 1px solid #cbd5e1;
     border-radius: 40px;

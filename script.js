@@ -68,6 +68,7 @@ const TRANSEGOVIA_VEHICLES = [
 ];
 let currentWeekStart = null;
 let editingAppId = null;
+let agendaLocked = false;
 
 async function apiRequest(path, options = {}) {
     const response = await fetch(path, {
@@ -210,6 +211,11 @@ function normalizeAppointments(items) {
 async function loadAppointmentsFromApi() {
     const data = await apiRequest("/api/appointments");
     appointments = normalizeAppointments(data);
+}
+
+async function loadAgendaSettingsFromApi() {
+    const data = await apiRequest("/api/settings/agenda");
+    agendaLocked = data && data.isLocked === true;
 }
 
 function hasConflict(date, time, excludeId = null) {
@@ -477,6 +483,8 @@ function renderCalendar() {
                             <div style="font-size:0.65rem;">Coord: ${escapeHtml(coordinatorDisplay)}</div>
                             <span class="status-badge ${statusClass}" style="font-size:0.6rem;">${statusText}</span>
                         </div>`;
+            } else if (agendaLocked) {
+                html += `<div class="calendar-cell unavailable-slot" data-date="${dateStr}" data-time="${slot}">Bloqueada</div>`;
             } else {
                 html += `<div class="calendar-cell" data-date="${dateStr}" data-time="${slot}"></div>`;
             }
@@ -489,7 +497,15 @@ function renderCalendar() {
     });
     // Las celdas vacías siempre son clicables para agendar
     document.querySelectorAll('.calendar-cell[data-date]').forEach(cell => {
-        cell.addEventListener('click', (e) => { const date = cell.getAttribute('data-date'); const time = cell.getAttribute('data-time'); openModal(null, date, time); });
+        cell.addEventListener('click', (e) => {
+            if (agendaLocked) {
+                showTemporaryMessage("La agenda está bloqueada. Solo el administrador puede habilitarla nuevamente.", "error");
+                return;
+            }
+            const date = cell.getAttribute('data-date');
+            const time = cell.getAttribute('data-time');
+            openModal(null, date, time);
+        });
     });
 }
 
@@ -504,6 +520,10 @@ function openModal(appId, date, time) {
     const pdfDownload = document.getElementById('modalPdfDownload');
     const deleteBtn = document.getElementById('modalDeleteBtn');
     const managerMode = canManageRevisions();
+    if (!appId && agendaLocked) {
+        showTemporaryMessage("La agenda está bloqueada para nuevas citas.", "error");
+        return;
+    }
     if (appId) {
         // Visualizar / editar cita existente
         const app = appointments.find(a => a.id === appId);
@@ -584,6 +604,10 @@ async function confirmModal() {
         if (parts.length === 3) date = `${parts[2]}-${parts[1]}-${parts[0]}`;
         else { showTemporaryMessage("Fecha inválida.", "error"); return; }
         time = timeStr;
+    }
+    if (!editingAppId && agendaLocked) {
+        showTemporaryMessage("La agenda está bloqueada y no permite agendar nuevas citas.", "error");
+        return;
     }
     if (!vehicle || !company || !type || !coordinator || !status) {
         showTemporaryMessage("Complete los campos obligatorios: tipo, empresa, vehículo, coordinador y resultado.", "error");
@@ -942,6 +966,44 @@ function handleAppointmentsTableClick(event) {
     if (target.classList.contains("btn-delete-appointment")) handleDeleteClick(event);
 }
 
+function renderAgendaLockControls() {
+    const wrapper = document.getElementById("agendaQuickActions");
+    const badge = document.getElementById("agendaLockBadge");
+    const toggleBtn = document.getElementById("toggleAgendaLockBtn");
+    const isAdmin = canManageUsers();
+
+    if (!wrapper || !badge || !toggleBtn) return;
+    wrapper.style.display = isAdmin ? "inline-flex" : "none";
+    badge.textContent = agendaLocked ? "Agenda bloqueada" : "Agenda habilitada";
+    badge.classList.toggle("locked", agendaLocked);
+    toggleBtn.textContent = agendaLocked ? "Habilitar agenda" : "Bloquear agenda";
+    toggleBtn.classList.toggle("danger", !agendaLocked);
+    toggleBtn.classList.toggle("secondary", agendaLocked);
+}
+
+async function toggleAgendaLock() {
+    if (!canManageUsers()) {
+        showTemporaryMessage("Solo un administrador puede bloquear o habilitar la agenda.", "error");
+        return;
+    }
+    const nextState = !agendaLocked;
+    try {
+        const result = await apiRequest("/api/settings/agenda", {
+            method: "PATCH",
+            body: {
+                isLocked: nextState,
+                updatedBy: authenticatedUser?.username || authenticatedUser?.name || "ADMIN"
+            }
+        });
+        agendaLocked = result && result.isLocked === true;
+        renderAgendaLockControls();
+        renderCalendar();
+        showTemporaryMessage(agendaLocked ? "Agenda bloqueada correctamente." : "Agenda habilitada nuevamente.", "success");
+    } catch (error) {
+        showTemporaryMessage(error.message || "No fue posible actualizar el estado de la agenda.", "error");
+    }
+}
+
 function updateUIForAuth(loggedIn) {
     const statusSpan = document.getElementById("userStatusText");
     const logoutBtn = document.getElementById("logoutBtn");
@@ -956,6 +1018,7 @@ function updateUIForAuth(loggedIn) {
         isAuthenticated = false;
     }
     renderUserManagementSection();
+    renderAgendaLockControls();
 }
 
 function logoutUser() {
@@ -975,6 +1038,7 @@ function bindGlobalEvents() {
     document.getElementById("prevWeekBtn").addEventListener("click", () => navigateWeek(-1));
     document.getElementById("nextWeekBtn").addEventListener("click", () => navigateWeek(1));
     document.getElementById("modalCompany").addEventListener("change", () => updateVehicleFieldVisibility(""));
+    document.getElementById("toggleAgendaLockBtn").addEventListener("click", toggleAgendaLock);
     document.getElementById("modalDeleteBtn").addEventListener("click", handleModalDeleteClick);
     document.getElementById("modalCancelBtn").addEventListener("click", closeModal);
     document.getElementById("modalConfirmBtn").addEventListener("click", confirmModal);
@@ -984,6 +1048,7 @@ function bindGlobalEvents() {
 async function init() {
     try {
         await loadCompanyOptionsFromApi();
+        await loadAgendaSettingsFromApi();
         await loadAuthConfig();
         if (!restoreSessionUser()) {
             window.location.href = "login.html";
