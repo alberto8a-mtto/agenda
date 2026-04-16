@@ -64,6 +64,7 @@ body {
     display: flex;
     align-items: center;
     gap: 8px;
+    flex-wrap: wrap;
 }
 .agenda-lock-badge {
     display: inline-flex;
@@ -79,6 +80,34 @@ body {
 .agenda-lock-badge.locked {
     background: #fee2e2;
     color: #991b1b;
+}
+.agenda-range-controls {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 4px 8px;
+    border: 1px solid #d6e0ea;
+    border-radius: 999px;
+    background: #f8fafc;
+}
+.agenda-range-controls label {
+    font-size: 0.74rem;
+    font-weight: 700;
+    color: #355069;
+}
+.agenda-range-controls input {
+    min-width: 132px;
+    border: 1px solid #cbd5e1;
+    border-radius: 999px;
+    padding: 6px 10px;
+    font-size: 0.78rem;
+    background: #ffffff;
+}
+.agenda-range-summary {
+    font-size: 0.75rem;
+    color: #4b6378;
+    font-weight: 600;
 }
 .user-controls input {
     border: 1px solid #cbd5e1;
@@ -480,5 +509,13 @@ footer { text-align: center; font-size: 0.75rem; color: #5b6e8c; margin-top: 30p
     }
     .company-management-row button {
         justify-self: stretch;
+    }
+    .agenda-range-controls {
+        border-radius: 14px;
+        padding: 8px;
+    }
+    .agenda-range-controls input,
+    .agenda-range-controls button {
+        width: 100%;
     }
 }

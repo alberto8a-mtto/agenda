@@ -126,6 +126,7 @@ async function getAgendaSettings(db) {
   if (!snap.exists) {
     const defaultSettings = {
       isLocked: false,
+      blockedRanges: [],
       updatedAt: new Date(),
       updatedBy: null
     };
@@ -134,11 +135,43 @@ async function getAgendaSettings(db) {
   }
 
   const data = snap.data() || {};
+  const blockedRanges = Array.isArray(data.blockedRanges)
+    ? data.blockedRanges
+        .map((item) => {
+          const from = String(item?.from || '').trim();
+          const to = String(item?.to || '').trim();
+          if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) return null;
+          if (from > to) return null;
+          return { from, to };
+        })
+        .filter(Boolean)
+    : [];
   return {
     isLocked: data.isLocked === true,
+    blockedRanges,
     updatedAt: data.updatedAt || null,
     updatedBy: data.updatedBy || null
   };
+}
+
+function normalizeAgendaRanges(ranges) {
+  if (!Array.isArray(ranges)) return [];
+  const unique = [];
+  for (const range of ranges) {
+    const from = String(range?.from || '').trim();
+    const to = String(range?.to || '').trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) continue;
+    if (from > to) continue;
+    if (unique.some((existing) => existing.from === from && existing.to === to)) continue;
+    unique.push({ from, to });
+  }
+  return unique.sort((a, b) => `${a.from}-${a.to}`.localeCompare(`${b.from}-${b.to}`));
+}
+
+function isAppointmentDateBlockedByRange(dateValue, ranges) {
+  const date = String(dateValue || '').trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
+  return (ranges || []).some((range) => date >= range.from && date <= range.to);
 }
 
 // ==================== AUTENTICACIÓN ====================
@@ -414,13 +447,17 @@ app.patch('/api/settings/agenda', async (req, res) => {
   try {
     const db = getDb();
     const hasIsLocked = Object.prototype.hasOwnProperty.call(req.body || {}, 'isLocked');
+    const hasBlockedRanges = Object.prototype.hasOwnProperty.call(req.body || {}, 'blockedRanges');
 
-    if (!hasIsLocked) {
-      return res.status(400).json({ error: 'El campo isLocked es requerido' });
+    if (!hasIsLocked && !hasBlockedRanges) {
+      return res.status(400).json({ error: 'Debe enviar isLocked o blockedRanges' });
     }
 
+    const current = await getAgendaSettings(db);
+
     const payload = {
-      isLocked: req.body.isLocked === true,
+      isLocked: hasIsLocked ? req.body.isLocked === true : current.isLocked,
+      blockedRanges: hasBlockedRanges ? normalizeAgendaRanges(req.body.blockedRanges) : current.blockedRanges,
       updatedAt: new Date(),
       updatedBy: req.body.updatedBy ? String(req.body.updatedBy) : null
     };
@@ -495,6 +532,11 @@ app.post('/api/appointments', async (req, res) => {
       return res.status(423).json({ error: 'La agenda está bloqueada temporalmente. No se pueden crear nuevas citas.' });
     }
     const appointment = req.body;
+
+    if (isAppointmentDateBlockedByRange(appointment?.date, agendaSettings.blockedRanges)) {
+      return res.status(423).json({ error: 'La fecha seleccionada está bloqueada por configuración de agenda.' });
+    }
+
     const docRef = await db.collection('appointments').add(appointment);
 
     res.json({

@@ -69,6 +69,7 @@ const TRANSEGOVIA_VEHICLES = [
 let currentWeekStart = null;
 let editingAppId = null;
 let agendaLocked = false;
+let agendaBlockedRanges = [];
 
 async function apiRequest(path, options = {}) {
     const response = await fetch(path, {
@@ -216,6 +217,36 @@ async function loadAppointmentsFromApi() {
 async function loadAgendaSettingsFromApi() {
     const data = await apiRequest("/api/settings/agenda");
     agendaLocked = data && data.isLocked === true;
+    agendaBlockedRanges = Array.isArray(data?.blockedRanges) ? data.blockedRanges : [];
+}
+
+function normalizeDateRange(range) {
+    if (!range || typeof range !== "object") return null;
+    const from = String(range.from || "").trim();
+    const to = String(range.to || "").trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) return null;
+    if (from > to) return null;
+    return { from, to };
+}
+
+function normalizeBlockedRanges(ranges) {
+    if (!Array.isArray(ranges)) return [];
+    const normalized = [];
+    for (const range of ranges) {
+        const item = normalizeDateRange(range);
+        if (!item) continue;
+        if (normalized.some(existing => existing.from === item.from && existing.to === item.to)) continue;
+        normalized.push(item);
+    }
+    return normalized.sort((a, b) => `${a.from}-${a.to}`.localeCompare(`${b.from}-${b.to}`));
+}
+
+function isDateBlockedByRange(dateStr) {
+    return agendaBlockedRanges.some(range => dateStr >= range.from && dateStr <= range.to);
+}
+
+function isDateBlocked(dateStr) {
+    return agendaLocked || isDateBlockedByRange(dateStr);
 }
 
 function hasConflict(date, time, excludeId = null) {
@@ -483,7 +514,7 @@ function renderCalendar() {
                             <div style="font-size:0.65rem;">Coord: ${escapeHtml(coordinatorDisplay)}</div>
                             <span class="status-badge ${statusClass}" style="font-size:0.6rem;">${statusText}</span>
                         </div>`;
-            } else if (agendaLocked) {
+            } else if (isDateBlocked(dateStr)) {
                 html += `<div class="calendar-cell unavailable-slot" data-date="${dateStr}" data-time="${slot}">Bloqueada</div>`;
             } else {
                 html += `<div class="calendar-cell" data-date="${dateStr}" data-time="${slot}"></div>`;
@@ -498,11 +529,11 @@ function renderCalendar() {
     // Las celdas vacías siempre son clicables para agendar
     document.querySelectorAll('.calendar-cell[data-date]').forEach(cell => {
         cell.addEventListener('click', (e) => {
-            if (agendaLocked) {
+            const date = cell.getAttribute('data-date');
+            if (date && isDateBlocked(date)) {
                 showTemporaryMessage("La agenda está bloqueada. Solo el administrador puede habilitarla nuevamente.", "error");
                 return;
             }
-            const date = cell.getAttribute('data-date');
             const time = cell.getAttribute('data-time');
             openModal(null, date, time);
         });
@@ -520,7 +551,7 @@ function openModal(appId, date, time) {
     const pdfDownload = document.getElementById('modalPdfDownload');
     const deleteBtn = document.getElementById('modalDeleteBtn');
     const managerMode = canManageRevisions();
-    if (!appId && agendaLocked) {
+    if (!appId && isDateBlocked(date)) {
         showTemporaryMessage("La agenda está bloqueada para nuevas citas.", "error");
         return;
     }
@@ -605,7 +636,7 @@ async function confirmModal() {
         else { showTemporaryMessage("Fecha inválida.", "error"); return; }
         time = timeStr;
     }
-    if (!editingAppId && agendaLocked) {
+    if (!editingAppId && isDateBlocked(date)) {
         showTemporaryMessage("La agenda está bloqueada y no permite agendar nuevas citas.", "error");
         return;
     }
@@ -970,15 +1001,23 @@ function renderAgendaLockControls() {
     const wrapper = document.getElementById("agendaQuickActions");
     const badge = document.getElementById("agendaLockBadge");
     const toggleBtn = document.getElementById("toggleAgendaLockBtn");
+    const rangeSummary = document.getElementById("agendaRangeSummary");
     const isAdmin = canManageUsers();
 
-    if (!wrapper || !badge || !toggleBtn) return;
+    if (!wrapper || !badge || !toggleBtn || !rangeSummary) return;
     wrapper.style.display = isAdmin ? "inline-flex" : "none";
     badge.textContent = agendaLocked ? "Agenda bloqueada" : "Agenda habilitada";
     badge.classList.toggle("locked", agendaLocked);
     toggleBtn.textContent = agendaLocked ? "Habilitar agenda" : "Bloquear agenda";
     toggleBtn.classList.toggle("danger", !agendaLocked);
     toggleBtn.classList.toggle("secondary", agendaLocked);
+
+    if (!agendaBlockedRanges.length) {
+        rangeSummary.textContent = "Sin tramos bloqueados";
+    } else {
+        const labels = agendaBlockedRanges.map(range => `${range.from} a ${range.to}`);
+        rangeSummary.textContent = `Tramos: ${labels.join(" | ")}`;
+    }
 }
 
 async function toggleAgendaLock() {
@@ -992,15 +1031,83 @@ async function toggleAgendaLock() {
             method: "PATCH",
             body: {
                 isLocked: nextState,
+                blockedRanges: agendaBlockedRanges,
                 updatedBy: authenticatedUser?.username || authenticatedUser?.name || "ADMIN"
             }
         });
         agendaLocked = result && result.isLocked === true;
+        agendaBlockedRanges = normalizeBlockedRanges(result?.blockedRanges || agendaBlockedRanges);
         renderAgendaLockControls();
         renderCalendar();
         showTemporaryMessage(agendaLocked ? "Agenda bloqueada correctamente." : "Agenda habilitada nuevamente.", "success");
     } catch (error) {
         showTemporaryMessage(error.message || "No fue posible actualizar el estado de la agenda.", "error");
+    }
+}
+
+async function addAgendaLockRange() {
+    if (!canManageUsers()) {
+        showTemporaryMessage("Solo un administrador puede bloquear tramos de agenda.", "error");
+        return;
+    }
+
+    const fromInput = document.getElementById("agendaLockFrom");
+    const toInput = document.getElementById("agendaLockTo");
+    const from = fromInput?.value || "";
+    const to = toInput?.value || "";
+
+    if (!from || !to) {
+        showTemporaryMessage("Seleccione fechas desde y hasta para bloquear el tramo.", "error");
+        return;
+    }
+    if (from > to) {
+        showTemporaryMessage("La fecha desde no puede ser mayor que la fecha hasta.", "error");
+        return;
+    }
+
+    const nextRanges = normalizeBlockedRanges([...agendaBlockedRanges, { from, to }]);
+    try {
+        const result = await apiRequest("/api/settings/agenda", {
+            method: "PATCH",
+            body: {
+                isLocked: agendaLocked,
+                blockedRanges: nextRanges,
+                updatedBy: authenticatedUser?.username || authenticatedUser?.name || "ADMIN"
+            }
+        });
+        agendaLocked = result && result.isLocked === true;
+        agendaBlockedRanges = normalizeBlockedRanges(result?.blockedRanges || []);
+        if (fromInput) fromInput.value = "";
+        if (toInput) toInput.value = "";
+        renderAgendaLockControls();
+        renderCalendar();
+        showTemporaryMessage("Tramo de fechas bloqueado correctamente.", "success");
+    } catch (error) {
+        showTemporaryMessage(error.message || "No fue posible bloquear el tramo de fechas.", "error");
+    }
+}
+
+async function clearAgendaLockRanges() {
+    if (!canManageUsers()) {
+        showTemporaryMessage("Solo un administrador puede limpiar tramos de agenda.", "error");
+        return;
+    }
+    try {
+        const result = await apiRequest("/api/settings/agenda", {
+            method: "PATCH",
+            body: {
+                isLocked: agendaLocked,
+                blockedRanges: [],
+                updatedBy: authenticatedUser?.username || authenticatedUser?.name || "ADMIN"
+            }
+        });
+        agendaLocked = result && result.isLocked === true;
+        agendaBlockedRanges = normalizeBlockedRanges(result?.blockedRanges || []);
+        renderAgendaLockControls();
+        renderCalendar();
+        showTemporaryMessage("Tramos de agenda limpiados.", "success");
+    } catch (error) {
+        showTemporaryMessage(error.message || "No fue posible limpiar los tramos de agenda.", "error");
     }
 }
 
@@ -1039,6 +1146,8 @@ function bindGlobalEvents() {
     document.getElementById("nextWeekBtn").addEventListener("click", () => navigateWeek(1));
     document.getElementById("modalCompany").addEventListener("change", () => updateVehicleFieldVisibility(""));
     document.getElementById("toggleAgendaLockBtn").addEventListener("click", toggleAgendaLock);
+    document.getElementById("addAgendaLockRangeBtn").addEventListener("click", addAgendaLockRange);
+    document.getElementById("clearAgendaLockRangesBtn").addEventListener("click", clearAgendaLockRanges);
     document.getElementById("modalDeleteBtn").addEventListener("click", handleModalDeleteClick);
     document.getElementById("modalCancelBtn").addEventListener("click", closeModal);
     document.getElementById("modalConfirmBtn").addEventListener("click", confirmModal);
@@ -1049,6 +1158,7 @@ async function init() {
     try {
         await loadCompanyOptionsFromApi();
         await loadAgendaSettingsFromApi();
+        agendaBlockedRanges = normalizeBlockedRanges(agendaBlockedRanges);
         await loadAuthConfig();
         if (!restoreSessionUser()) {
             window.location.href = "login.html";

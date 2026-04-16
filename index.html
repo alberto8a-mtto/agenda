@@ -20,6 +20,15 @@
             <div id="agendaQuickActions" class="agenda-lock-controls" style="display: none;">
                 <span id="agendaLockBadge" class="agenda-lock-badge">Agenda habilitada</span>
                 <button id="toggleAgendaLockBtn" type="button" class="secondary">Bloquear agenda</button>
+                <div class="agenda-range-controls">
+                    <label for="agendaLockFrom">Desde</label>
+                    <input id="agendaLockFrom" type="date">
+                    <label for="agendaLockTo">Hasta</label>
+                    <input id="agendaLockTo" type="date">
+                    <button id="addAgendaLockRangeBtn" type="button" class="danger">Bloquear tramo</button>
+                    <button id="clearAgendaLockRangesBtn" type="button" class="secondary">Limpiar tramos</button>
+                </div>
+                <span id="agendaRangeSummary" class="agenda-range-summary">Sin tramos bloqueados</span>
             </div>
             <button id="logoutBtn" style="display: none;">Cerrar sesión</button>
         </div>
